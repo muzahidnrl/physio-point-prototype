@@ -78,6 +78,8 @@
 
   function renderShell() {
     const s = PP.db.settings; const u = PP.currentUser(); const role = PP.db.roles.find((r) => r.id === u.role);
+    const isAdmin = !!role && role.permissions.includes('*');
+    const showBranch = isAdmin || (u.branchIds || []).length > 1;
     const unread = PP.db.notifications.filter((n) => !n.read).length;
     const lic = s.licence || {};
     PP.$('#app').innerHTML = `
@@ -94,11 +96,11 @@
             <button class="icon-btn menu-toggle" data-menu aria-label="Toggle navigation">${PP.icon('menu')}</button>
             <div class="page-title" id="page-title"></div>
             <div class="spacer"></div>
-            <div class="tb-group hide-md"><span class="tb-label">Branch</span>
+            <div class="tb-group hide-md" ${showBranch ? '' : 'hidden style="display:none"'}><span class="tb-label">Branch</span>
               <select class="tb-select" data-branch aria-label="Active branch"><option value="ALL">All branches</option>${PP.db.branches.filter((b) => u.role === 'admin' || u.branchIds.includes(b.id)).map((b) => `<option value="${b.id}" ${PP.activeBranchId() === b.id ? 'selected' : ''}>${esc(b.name)}</option>`).join('')}</select></div>
-            <div class="tb-group hide-md" title="Prototype control: shows how terminology changes with the business type"><span class="tb-label">Demo business type</span>
+            <div class="tb-group hide-md" ${isAdmin ? '' : 'hidden style="display:none"'} title="Prototype control: shows how terminology changes with the business type"><span class="tb-label">Demo business type</span>
               <select class="tb-select" data-btype aria-label="Demo business type">${Object.entries(PP.businessTypes).map(([k, v]) => `<option value="${k}" ${s.businessType === k ? 'selected' : ''}>${esc(v.label)}</option>`).join('')}</select></div>
-            <div class="tb-group hide-sm" title="Prototype control: see the app as another role"><span class="tb-label">View as</span>
+            <div class="tb-group hide-sm" ${isAdmin ? '' : 'hidden style="display:none"'} title="Prototype control: see the app as another role"><span class="tb-label">View as</span>
               <select class="tb-select" data-viewas aria-label="View as user">${PP.db.users.filter((x) => x.status === 'Active').map((x) => `<option value="${x.id}" ${x.id === u.id ? 'selected' : ''}>${esc(x.name)} · ${esc((PP.db.roles.find((r) => r.id === x.role) || {}).name || x.role)}</option>`).join('')}</select></div>
             <div class="rel"><button class="icon-btn" data-bell aria-label="Notifications">${PP.icon('bell')}${unread ? `<span class="dot">${unread}</span>` : ''}</button></div>
             <div class="rel"><button class="user-chip" data-user aria-label="Account menu"><span class="avatar">${esc(PP.initials(u.name))}</span><span class="who"><b>${esc(u.name)}</b><span>${esc(role ? role.name : '')}</span></span>${PP.icon('chevD', 'style="width:14px;height:14px"')}</button></div>

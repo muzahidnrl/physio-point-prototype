@@ -198,6 +198,7 @@
             ${PP.form.field({ name: 'qualification', label: 'Qualification', value: p.qualification, placeholder: 'e.g. BPT, MPT (Ortho)' })}
             ${PP.form.field({ name: 'registrationNo', label: 'Registration number', value: p.registrationNo, placeholder: 'e.g. BPA-1021', hint: 'Professional council registration, printed on prescriptions.' })}
             <div class="field" data-field="cap-preview"><span class="label">Type capabilities</span><div class="adm-cap-chips" data-caps></div></div>
+            ${PP.form.field({ name: 'canPrescribeMedication', type: 'checkbox', label: 'এই ব্যক্তি ওষুধ লিখতে পারবেন (Can prescribe medicine)', value: p.canPrescribeMedication !== false, hint: 'ডিফল্টে সবাই পারেন। বন্ধ করলে শুধু এই ব্যক্তির জন্য বন্ধ হবে; টাইপ থেকেও বন্ধ করা যায় (Settings → Professional types).' })}
           </div>` })}
           ${PP.ui.card({ title: 'Contact and workplace', body: `<div class="form-grid">
             ${PP.form.field({ name: 'mobile', label: 'Mobile', type: 'tel', rule: 'mobile', value: p.mobile, placeholder: '01XXXXXXXXX' })}
@@ -242,6 +243,7 @@
           registrationNo: v.registrationNo, mobile: v.mobile, email: v.email, branchId: v.branchId, color: v.color, status: v.status,
           manualCommissionPercent: pct, userId: v.userId || null,
         });
+        if (v.canPrescribeMedication === false || v.canPrescribeMedication === 'false' || v.canPrescribeMedication === '') rec.canPrescribeMedication = false; else delete rec.canPrescribeMedication;
         if (!editing) PP.db.professionals.push(rec);
         if (prevUser && prevUser !== rec.userId) { const u = PP.find.user(prevUser); if (u && u.professionalId === rec.id) u.professionalId = null; }
         if (rec.userId) { const u = PP.find.user(rec.userId); if (u) u.professionalId = rec.id; }

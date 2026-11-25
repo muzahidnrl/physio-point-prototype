@@ -45,8 +45,8 @@
         { id: 'EQ-3', branchId: 'BR-2', name: 'Traction table', status: 'Maintenance' },
       ],
       professionalTypes: [
-        { id: 'PT-PHYSIO', name: 'Physiotherapist', canBeBooked: true, canRecordClinical: true, canPrescribeExercise: true, canPrescribeMedication: false, canIssueCertificate: true, status: 'Active' },
-        { id: 'PT-ASSIST', name: 'Physiotherapy Assistant', canBeBooked: true, canRecordClinical: true, canPrescribeExercise: false, canPrescribeMedication: false, canIssueCertificate: false, status: 'Active' },
+        { id: 'PT-PHYSIO', name: 'Physiotherapist', canBeBooked: true, canRecordClinical: true, canPrescribeExercise: true, canPrescribeMedication: true, canIssueCertificate: true, status: 'Active' },
+        { id: 'PT-ASSIST', name: 'Physiotherapy Assistant', canBeBooked: true, canRecordClinical: true, canPrescribeExercise: false, canPrescribeMedication: true, canIssueCertificate: false, status: 'Active' },
         { id: 'PT-CONSULT', name: 'Consultant (Rehabilitation)', canBeBooked: true, canRecordClinical: true, canPrescribeExercise: true, canPrescribeMedication: true, canIssueCertificate: true, status: 'Active' },
       ],
       closures: [{ date: PP.addDays(T, 12), reason: 'Public holiday' }],
@@ -373,6 +373,8 @@
       db.users.push(u); p.userId = u.id; if (!p.email) p.email = email;
     });
   });
+  // D-033: medicine is allowed for everyone by default; the admin can switch it off per type or per person.
+  PP.registerSeed('rx-med-default', (db) => { (db.professionalTypes || []).forEach((t) => { t.canPrescribeMedication = true; }); });
   // D-032: bring existing browser data onto the tightened role matrix (built-in roles only; custom roles are left alone).
   PP.registerSeed('roles-v2', (db) => {
     db.roles.forEach((r) => { if (r.system && ROLE_PERMS[r.id]) r.permissions = ROLE_PERMS[r.id].slice(); });

@@ -9,7 +9,11 @@
 
   /* ------------------------------------------------------------ helpers */
   const typeOf = (proId) => { const p = PP.find.professional(proId); return p ? PP.db.professionalTypes.find((t) => t.id === p.typeId) || null : null; };
-  const cap = (proId, k) => { const t = typeOf(proId); return !!(t && t[k]); };
+  // A capability comes from the professional type; the admin can also switch medicine off for one person (D-033).
+  const cap = (proId, k) => { const t = typeOf(proId); if (!t || !t[k]) return false; const p = PP.find.professional(proId); return !(k === 'canPrescribeMedication' && p && p.canPrescribeMedication === false); };
+  PP.canPrescribeMedicine = (proId) => cap(proId, 'canPrescribeMedication');
+  /** Pros a user may pick: a signed-in professional can only act as themselves. */
+  const pickablePros = (list) => { const me = PP.ownProId(); return me ? list.filter((p) => p.id === me) : list; };
   const clinicalPros = () => PP.db.professionals.filter((p) => p.status === 'Active' && cap(p.id, 'canRecordClinical'));
   const proOpt = (p) => [p.id, `${PP.proName(p)} · ${(typeOf(p.id) || {}).name || p.designation}`];
   const livePatients = () => PP.db.patients.filter((p) => !p.mergedInto && PP.inBranch(p) && PP.canSeePatient(p.id));
@@ -105,7 +109,7 @@
       const F = PP.form.field;
       const appt = query.appointment ? PP.find.appointment(query.appointment) : null;
       const pid = (appt && appt.patientId) || query.patient || '';
-      const pros = clinicalPros();
+      const pros = pickablePros(clinicalPros());
       let proId = (appt && cap(appt.professionalId, 'canRecordClinical') && appt.professionalId) || (pros.some((p) => p.id === myProId()) ? myProId() : '');
       if (!proId && pid) { const pt = PP.find.patient(pid); if (pt && pros.some((p) => p.id === pt.assignedProfessionalId)) proId = pt.assignedProfessionalId; }
       const painMap = [];
@@ -366,7 +370,7 @@
       if (v) { rx.patientId = v.patientId; rx.professionalId = v.professionalId; rx.assessment = v.assessment || ''; rx.condition = v.complaint || ''; rx.cc = v.complaint || ''; rx.oe = [v.assessment, v.rom].filter(Boolean).join('\n'); rx.advice = v.advice || ''; rx.painScore = v.painScale; }
       const mine = myProId(); if (mine && cap(mine, 'canRecordClinical')) rx.professionalId = mine;
     }
-    const pros = clinicalPros(); if (rx.professionalId && !pros.some((p) => p.id === rx.professionalId) && PP.find.professional(rx.professionalId)) pros.push(PP.find.professional(rx.professionalId));
+    const pros = pickablePros(clinicalPros()); if (rx.professionalId && !pros.some((p) => p.id === rx.professionalId) && PP.find.professional(rx.professionalId)) pros.push(PP.find.professional(rx.professionalId));
     const tpls = PP.db.templates.filter((t) => t.status === 'Approved' || t.version > 1 || (t.history || []).length);
     const pt = PP.find.patient(rx.patientId);
     el.innerHTML = PP.ui.pageHead({
@@ -382,7 +386,7 @@
           ${PP.ui.card({ title: 'Patient & visit', body: `<div class="form-grid">
             <div class="full">${patientCombo('patientId', rx.patientId, !canEdit)}</div>
             <div id="visit-field"></div>
-            ${F({ name: 'professionalId', label: PP.t('professional'), type: 'select', required: true, value: rx.professionalId, options: pros.map(proOpt), disabled: !canEdit })}
+            ${F({ name: 'professionalId', label: PP.t('professional'), type: 'select', required: true, value: rx.professionalId, placeholder: pros.length > 1 ? undefined : false, options: pros.map(proOpt), disabled: !canEdit })}
           </div>` })}
           ${PP.rxPad.detailsCard(rx, canEdit)}
           ${PP.ui.card({ title: 'Condition & assessment', body: `<div class="form-grid">
@@ -416,10 +420,14 @@
     const form = PP.$('#rx-form', el);
 
     function drawVisits(patientId, selected) {
-      const list = PP.db.visits.filter((v) => v.patientId === patientId).sort((a, b) => b.date.localeCompare(a.date));
+      // Only today's visits (D-033); an existing prescription keeps showing its own visit.
+      const list = PP.db.visits.filter((v) => v.patientId === patientId && (v.date === PP.today() || v.id === selected)).sort((a, b) => b.date.localeCompare(a.date));
+      const opts = list.map((v) => [v.id, `${v.date === PP.today() ? 'আজ' : PP.fmt.date(v.date)} · ${v.complaint || 'Visit'} · ${v.id}`]);
+      if (patientId && canEdit && !list.some((v) => v.date === PP.today())) opts.unshift(['__today', `আজকের নতুন ভিজিট (${PP.fmt.date(PP.today())}) — সেভ করলে তৈরি হবে`]);
+      if (!selected && opts.length) selected = opts[0][0];
       PP.$('#visit-field', el).innerHTML = F({ name: 'visitId', label: 'Clinical visit', type: 'select', required: true, value: selected, disabled: !canEdit, error: 'Select the visit this prescription belongs to.',
-        placeholder: patientId ? (list.length ? 'Select a visit…' : 'No visits for this patient') : 'Select a patient first', options: list.map((v) => [v.id, `${PP.fmt.date(v.date)} · ${v.complaint || 'Visit'} · ${v.id}`]),
-        hint: patientId && !list.length && PP.can('clinical.write') ? `<a href="#/visits/new?patient=${esc(patientId)}">Record a clinical visit first</a>` : '' });
+        placeholder: patientId ? false : 'Select a patient first', options: opts,
+        hint: patientId ? `আগের ভিজিট ও রিপোর্ট রোগীর প্রোফাইলে দেখুন: <a href="#/patients/${esc(patientId)}?tab=visits">Visit history</a>` : '' });
       const s = PP.$('[name="visitId"]', el);
       s.addEventListener('change', () => {
         const v = PP.find.visit(s.value); if (!v) return;
@@ -506,6 +514,14 @@
       const d = PP.form.read(form);
       Object.assign(rx, { patientId: d.patientId, visitId: d.visitId, professionalId: d.professionalId, condition: d.condition, assessment: d.assessment, plan: d.plan, frequency: d.frequency, followUp: d.followUp,
         cc: d.cc, oe: d.oe, advice: d.advice, investigations: d.investigations, patientNote: d.patientNote, weight: d.weight, painScore: d.painScore === '' || d.painScore == null ? null : Number(d.painScore) });
+      if (rx.visitId === '__today' && rx.patientId) {
+        const pt0 = PP.find.patient(rx.patientId);
+        const nv = { id: PP.nextId('VIS'), appointmentId: null, patientId: rx.patientId, professionalId: rx.professionalId, branchId: (pt0 && pt0.branchId) || (PP.find.professional(rx.professionalId) || {}).branchId || null, date: PP.today(),
+          complaint: rx.cc || rx.condition || '', painScale: rx.painScore == null ? null : rx.painScore, assessment: rx.oe || rx.assessment || '', treatment: '', advice: rx.advice || '', nextVisit: rx.followUp || '', vitals: {}, rom: '', painMap: [],
+          form: PP.db.settings.businessType || 'physiotherapy', status: 'Completed', createdBy: (PP.currentUser() || {}).id || null, createdAt: PP.nowStamp() };
+        PP.db.visits.push(nv); PP.audit('Clinical visit recorded', nv.id, 'Created with prescription'); rx.visitId = nv.id;
+        const sel = PP.$('[name="visitId"]', form); if (sel) { sel.insertAdjacentHTML('beforeend', `<option value="${nv.id}">আজ · ${esc(nv.complaint || 'Visit')} · ${nv.id}</option>`); sel.value = nv.id; const t = PP.$('option[value="__today"]', sel); if (t) t.remove(); }
+      }
       const v = PP.find.visit(rx.visitId); const p = PP.find.patient(rx.patientId);
       rx.branchId = (v && v.branchId) || (p && p.branchId) || rx.branchId || null;
       rx.medications = cap(rx.professionalId, 'canPrescribeMedication') ? rx.medications.filter((m) => m.name && m.name.trim()) : [];
@@ -769,7 +785,7 @@
       title: 'New session plan', size: 'lg',
       body: `<form class="form-grid" onsubmit="return false">
         <div class="full">${patientCombo('patientId', patientId || '')}</div>
-        ${F({ name: 'professionalId', label: PP.t('professional'), type: 'select', required: true, value: myProId(), options: clinicalPros().map(proOpt) })}
+        ${F({ name: 'professionalId', label: PP.t('professional'), type: 'select', required: true, value: myProId(), options: pickablePros(clinicalPros()).map(proOpt) })}
         ${F({ name: 'title', label: 'Plan title', required: true, placeholder: 'e.g. Knee rehabilitation' })}
         ${F({ name: 'planned', label: 'Planned sessions', type: 'number', required: true, min: 1, max: 60, value: 8, rule: 'positive' })}
         ${F({ name: 'frequency', label: 'Frequency', type: 'select', required: true, placeholder: false, value: '2 per week', options: ['1 per week', '2 per week', '3 per week', '5 per week', 'Daily'] })}
