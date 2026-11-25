@@ -8,6 +8,7 @@
   'use strict';
   const PP = window.PP; const esc = PP.esc; const M = PP.m;
   const S = M.local('pp-patient-app', { clinic: null, mobile: null, patientId: null, consents: {}, readNtf: [] });
+  if (S.patientId && !S.selfId) { S.selfId = S.patientId; S.save(); } // sessions from before guardian access
 
   /* ------------------------------------------------------------------ helpers */
   const me = () => (S.patientId ? PP.find.patient(S.patientId) : null);
@@ -29,7 +30,10 @@
   const myRx = () => PP.db.prescriptions.filter((r) => r.patientId === S.patientId && r.status === 'Issued').sort((a, b) => b.date.localeCompare(a.date));
   const feedbackList = () => (PP.db.feedback || []);
   const rated = (aptId) => feedbackList().some((f) => f.appointmentId === aptId);
-  const family = () => { const p = me(); return p && p.familyGroup ? PP.db.patients.filter((x) => x.familyGroup === p.familyGroup && x.id !== p.id && !x.mergedInto) : []; };
+  /* Guardian access (D-036): only dependants the clinic has explicitly authorised for this person — not everyone in the family. */
+  const grantFor = (x) => (x && x.guardians || []).find((g) => g.status === 'Active' && (!g.until || g.until >= PP.today()) && (g.patientId === S.selfId || (g.mobile && digits(g.mobile) === digits(S.mobile))));
+  const family = () => PP.db.patients.filter((x) => !x.mergedInto && x.id !== S.selfId && grantFor(x));
+  const guardianGrant = () => (S.patientId && S.selfId && S.patientId !== S.selfId ? grantFor(me()) : null);
   const sameMobile = (x) => digits(x.mobile) === digits(S.mobile);
   /** Exercises from the latest issued prescription(s), one entry per exercise. */
   const myExercises = () => {
@@ -82,6 +86,20 @@
   }
 
   /* ================================================================== ACCESS */
+  // Route guard: in guardian mode, only the authorised sections open.
+  const TAB_SCOPE = { appts: ['appointments'], care: ['prescriptions', 'exercises', 'reports'], billing: ['billing'] };
+  const baseRoute = PP.route;
+  PP.route = function (pattern, def) {
+    if (def && def.render && def.tab && TAB_SCOPE[def.tab]) {
+      const inner = def.render;
+      def.render = function (ctx) {
+        const g = guardianGrant();
+        if (g && !TAB_SCOPE[def.tab].some((x) => (g.scopes || []).includes(x))) { ctx.el.innerHTML = M.emptyCard({ icon: 'lock', title: 'Not part of your guardian access', text: `The clinic authorised you for: ${esc((g.scopes || []).join(', '))}.`, action: '<a class="btn" href="#/family">Family members</a>' }); return; }
+        return inner.call(this, ctx);
+      };
+    }
+    return baseRoute.call(this, pattern, def);
+  };
   PP.route('/clinic', { sync: false, title: 'Find my clinic', public: true, chrome: 'none', render({ el }) {
     el.innerHTML = `<div class="m-auth"><div class="m-hero-ill">${M.clinicIll}</div>
       <h2>Find my clinic</h2><p class="lead">Enter the clinic code or the clinic’s web address. You find it on your appointment card, receipt or SMS.</p>
@@ -160,7 +178,7 @@
   } });
 
   function signIn(id) {
-    S.patientId = id; S.save();
+    S.patientId = id; S.selfId = id; S.save();
     const p = me(); M.write(() => PP.audit('Patient app sign-in', id, `Mobile OTP · ${p ? p.name : id}`));
     location.hash = S.consents[id] ? '#/home' : '#/consent';
   }
@@ -170,8 +188,17 @@
     if (!S.mobile || !hits.length) { location.replace('#/signin'); return; }
     el.innerHTML = `<div class="m-auth"><h2>Who is using the app?</h2><p class="lead">This mobile number is shared by ${hits.length} patient records. Each person keeps their own patient ID and records.</p>
       <div>${hits.map((p) => `<button class="m-choice" data-pick="${esc(p.id)}"><span class="avatar">${esc(PP.initials(p.name))}</span><span class="grow"><b>${esc(p.name)}</b><span class="s">${esc(p.id)} · ${esc(p.gender || '—')} · ${esc(PP.fmt.age(p.dob))}</span></span>${PP.icon('chevR', 'style="width:18px;color:var(--pp-text-3)"')}</button>`).join('')}</div>
-      <p class="m-note mt-4">A mobile number is not a unique patient identifier (blueprint rule). You can switch profile later under More → Family members.</p></div>`;
-    PP.$$('[data-pick]', el).forEach((b) => b.addEventListener('click', () => signIn(b.dataset.pick)));
+      <p class="m-note mt-4">A mobile number is not a unique patient identifier (blueprint rule). To manage a child’s or relative’s records, ask the clinic for guardian access.</p></div>`;
+    PP.$$('[data-pick]', el).forEach((b) => b.addEventListener('click', () => {
+      const p = PP.find.patient(b.dataset.pick);
+      M.sheet({ title: `Confirm you are ${esc(p.name)}`, body: `<form class="m-form" novalidate>${PP.form.field({ name: 'yob', label: 'Year of birth (or the last 3 digits of the patient ID)', required: true, attrs: 'inputmode="numeric" autocomplete="off"' })}<p class="m-note">The number is shared, so each person confirms who they are. Opening someone else’s records needs guardian access from the clinic.</p></form>`,
+        buttons: [{ label: 'Cancel', kind: 'ghost' }, { label: 'Continue', kind: 'primary', onClick: ({ body }) => {
+          const f = PP.$('form', body); if (!PP.form.validate(f)) return false; const v = String(PP.form.read(f).yob).trim();
+          const ok = (p.dob && v === p.dob.slice(0, 4)) || v === String(p.id).slice(-3);
+          if (!ok) { PP.form.setError(f, 'yob', 'That does not match this profile.'); return false; }
+          signIn(p.id);
+        } }] });
+    }));
   } });
 
   PP.route('/consent', { sync: false, title: 'Privacy and consent', chrome: 'none', render({ el }) {
@@ -650,12 +677,15 @@
 
   PP.route('/family', { title: 'Family members', tab: 'more', back: '#/more', render({ el }) {
     const fam = family();
-    el.innerHTML = `${PP.ui.alert('info', 'Family members are linked by the clinic. People who share your mobile number can be opened from this app.')}
-      ${fam.length ? `<div class="m-list mt-3">${fam.map((x) => `<div class="m-item"><span class="avatar">${esc(PP.initials(x.name))}</span><span class="grow"><span class="t">${esc(x.name)}</span><span class="s">${esc(x.id)} · ${esc(PP.fmt.age(x.dob))}${sameMobile(x) ? ' · same mobile' : ''}</span></span>${sameMobile(x) ? `<button class="btn btn-sm btn-primary" data-sw="${esc(x.id)}">Switch</button>` : '<span class="small muted">Own login</span>'}</div>`).join('')}</div>`
-        : `<div class="mt-3">${M.emptyCard({ icon: 'users', title: 'No family members linked', text: 'Ask the front desk to link family members to your record.' })}</div>`}`;
+    const back = S.selfId && S.patientId !== S.selfId ? `<button class="btn m-btn-block mt-3" data-self>${PP.icon('user')} Back to my own records</button>` : '';
+    el.innerHTML = `${PP.ui.alert('info', 'You can open a relative’s records only when the clinic has authorised you as their guardian or caregiver, for the sections and the period shown.')}${back}
+      ${fam.length ? `<div class="m-list mt-3">${fam.map((x) => `<div class="m-item"><span class="avatar">${esc(PP.initials(x.name))}</span><span class="grow"><span class="t">${esc(x.name)}</span><span class="s">${esc(x.id)} · ${esc(PP.fmt.age(x.dob))} · ${esc((grantFor(x) || {}).relation || 'Guardian')} access${(grantFor(x) || {}).until ? ' until ' + esc(PP.fmt.date(grantFor(x).until)) : ''} · ${esc(((grantFor(x) || {}).scopes || []).join(', '))}</span></span>${sameMobile(x) ? `<button class="btn btn-sm btn-primary" data-sw="${esc(x.id)}">Switch</button>` : '<span class="small muted">Own login</span>'}</div>`).join('')}</div>`
+        : `<div class="mt-3">${M.emptyCard({ icon: 'users', title: 'No guardian access', text: 'Ask the clinic to authorise you as a guardian or caregiver for a family member.' })}</div>`}`;
+    const sb = PP.$('[data-self]', el); if (sb) sb.addEventListener('click', () => { S.patientId = S.selfId; S.save(); M.toast('Back to your own records.', 'info'); location.hash = '#/home'; });
     PP.$$('[data-sw]', el).forEach((b) => b.addEventListener('click', () => {
-      const x = PP.find.patient(b.dataset.sw); S.patientId = x.id; S.save();
-      M.write(() => PP.audit('Patient app profile switched', x.id, 'Same mobile number (family)'));
+      const x = PP.find.patient(b.dataset.sw); const g = grantFor(x); if (!g) { M.toast('Guardian access is not active.', 'error'); return; }
+      S.patientId = x.id; S.save();
+      M.write(() => PP.audit('Guardian access used', x.id, `${g.name || S.mobile} · ${g.relation || ''} · ${(g.scopes || []).join(', ')}`));
       M.toast(`Now viewing ${esc(x.name)}’s records.`, 'info'); location.hash = S.consents[x.id] ? '#/home' : '#/consent';
     }));
   } });

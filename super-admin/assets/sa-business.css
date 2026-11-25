@@ -17,3 +17,8 @@
   .sa-ticket-ctrl { grid-template-columns: 1fr !important; }
   .sa-line { flex-wrap: wrap; }
 }
+
+/* vendor roles summary (staff page) */
+.sa-role-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
+.sa-role-card { border: 1px solid var(--pp-border, #e5e7eb); border-radius: 10px; padding: 12px; min-width: 0; }
+.sa-role-card .sa-pill code { font-size: 11px; }

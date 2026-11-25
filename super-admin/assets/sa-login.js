@@ -23,7 +23,7 @@
         <div data-msg></div>
         <button class="btn btn-primary" type="submit" style="width:100%;height:44px" data-submit>${PP.icon('lock')} Continue</button>
       </form>
-      <div class="demo-accounts"><div class="small muted"><b>Prototype:</b> pick a vendor staff account (any password works). Roles are a proposal (PD-033).</div>
+      <div class="demo-accounts"><div class="small muted"><b>Prototype:</b> pick a vendor staff account (any password works). 8 vendor roles (D-036).</div>
         ${PP.db.users.map((u) => `<button class="btn btn-sm" data-demo="${esc(u.email)}" type="button"><span>${esc(u.name)}</span><span class="small muted">${esc((PP.db.roles.find((r) => r.id === u.role) || {}).name || u.role)}${u.status !== 'Active' ? ' · disabled' : ''}</span></button>`).join('')}
       </div>`);
     const form = PP.$('[data-form]', root);
@@ -35,7 +35,7 @@
       await PP.ui.busy(PP.$('[data-submit]', form), async () => {
         const u = PP.db.users.find((x) => x.email.toLowerCase() === v.email.toLowerCase());
         if (!u) { msg.innerHTML = PP.ui.alert('error', 'Email or password is incorrect.'); return; }
-        if (u.status !== 'Active') { msg.innerHTML = PP.ui.alert('error', 'This vendor account is disabled. Ask the owner to re-enable it.'); return; }
+        if (u.status !== 'Active') { msg.innerHTML = PP.ui.alert('error', 'This vendor account is disabled. Ask a Super Admin to re-enable it.'); return; }
         renderCode(u);
       }, 600);
     });

@@ -4,30 +4,77 @@
 (function () {
   'use strict';
   const PP = window.PP; const SA = window.SA;
-  PP.version = 'control-plane-0.1.0'; // separate store; bump when this seed changes
+  PP.version = 'control-plane-0.1.0'; // separate store; bump when this seed changes (a bump re-seeds: prefer a PP.registerSeed migration)
+
+  /* Vendor staff: one or more per role (lastLogin = [days ago, hour, minute]). VS-6 stays disabled. */
+  SA.SEED_STAFF = [
+    { id: 'VS-1', name: 'Arif Hossain', email: 'arif@vendor.example', mobile: '01811-200001', role: 'super_admin', status: 'Active', mfa: true, lastLogin: [0, 9, 5] },
+    { id: 'VS-2', name: 'Nusrat Jahan', email: 'nusrat@vendor.example', mobile: '01811-200002', role: 'sales_manager', status: 'Active', mfa: true, lastLogin: [0, 10, 12] },
+    { id: 'VS-3', name: 'Kamrul Hasan', email: 'kamrul@vendor.example', mobile: '01811-200003', role: 'support_manager', status: 'Active', mfa: true, lastLogin: [0, 8, 40] },
+    { id: 'VS-4', name: 'Tahmina Akter', email: 'tahmina@vendor.example', mobile: '01811-200004', role: 'finance_admin', status: 'Active', mfa: true, lastLogin: [1, 17, 2] },
+    { id: 'VS-5', name: 'Imran Chowdhury', email: 'imran@vendor.example', mobile: '01811-200005', role: 'technical_admin', status: 'Active', mfa: true, lastLogin: [0, 11, 30] },
+    { id: 'VS-6', name: 'Sharmin Sultana', email: 'sharmin@vendor.example', mobile: '01811-200006', role: 'support_agent', status: 'Disabled', mfa: true, lastLogin: [42, 15, 0] },
+    { id: 'VS-7', name: 'Farhana Islam', email: 'farhana@vendor.example', mobile: '01811-200007', role: 'saas_admin', status: 'Active', mfa: true, lastLogin: [0, 9, 50] },
+    { id: 'VS-8', name: 'Rakib Uddin', email: 'rakib@vendor.example', mobile: '01811-200008', role: 'license_manager', status: 'Active', mfa: true, lastLogin: [1, 14, 20] },
+    { id: 'VS-9', name: 'Sadia Afrin', email: 'sadia@vendor.example', mobile: '01811-200009', role: 'support_agent', status: 'Active', mfa: true, lastLogin: [0, 9, 15] },
+  ];
+  /* Old role ids (6-role proposal) → the 8 roles. 'auditor' has no safe equivalent: mapping a read-only role to a manager
+     role would widen access, so a legacy read-only "Auditor" role is kept only while some non-seed account still uses it. */
+  SA.LEGACY_ROLE_MAP = { owner: 'super_admin', sales: 'sales_manager', support: 'support_manager', billing: 'finance_admin', engineering: 'technical_admin' };
+  const LEGACY_IDS = ['owner', 'sales', 'support', 'billing', 'engineering', 'auditor'];
+
+  /* One-time migration of a store seeded before the 8 roles existed. Runs once per stored dataset (PP.registerSeed);
+     on a fresh seed it finds nothing to do. Only roles, staff and remote-session records change; nothing is wiped. */
+  PP.registerSeed('sa-vendor-roles-v2', (db) => {
+    db.roles = db.roles || []; db.users = db.users || [];
+    const hasLegacy = db.roles.some((r) => LEGACY_IDS.includes(r.id)) || db.users.some((u) => LEGACY_IDS.includes(u.role));
+    const seedById = Object.fromEntries(SA.SEED_STAFF.map((s) => [s.id, s]));
+    const OLD_SEED_ROLE = { 'VS-1': 'owner', 'VS-2': 'sales', 'VS-3': 'support', 'VS-4': 'billing', 'VS-5': 'engineering', 'VS-6': 'auditor' };
+    const notes = [];
+    if (hasLegacy) {
+      const custom = db.roles.filter((r) => !LEGACY_IDS.includes(r.id) && !SA.VENDOR_ROLES.some((v) => v.id === r.id)); // roles added in the UI stay
+      let keepAuditor = false;
+      db.users.forEach((u) => {
+        const before = u.role;
+        if (seedById[u.id] && OLD_SEED_ROLE[u.id] === u.role) u.role = seedById[u.id].role; // the seeded account, untouched since: use its new seed role
+        else if (SA.LEGACY_ROLE_MAP[u.role]) u.role = SA.LEGACY_ROLE_MAP[u.role];
+        else if (u.role === 'auditor') keepAuditor = true;
+        if (before !== u.role) notes.push(`${u.id} ${before}→${u.role}`);
+      });
+      const legacyAuditor = db.roles.find((r) => r.id === 'auditor');
+      db.roles = SA.VENDOR_ROLES.map((r) => Object.assign({}, r, { permissions: r.permissions.slice() })).concat(custom);
+      if (keepAuditor) db.roles.push({ id: 'auditor', name: 'Auditor (legacy, read-only)', description: 'Kept from the earlier role proposal. Read-only; reassign these accounts to one of the 8 roles.', permissions: (legacyAuditor ? legacyAuditor.permissions : ['dashboard.view', 'customers.view', 'audit.view']).filter((p) => /\.view$/.test(p)) });
+    } else if (!db.roles.some((r) => r.id === 'super_admin')) {
+      db.roles = SA.VENDOR_ROLES.map((r) => Object.assign({}, r, { permissions: r.permissions.slice() })).concat(db.roles);
+    }
+    // add the new seeded accounts when missing (matched by email; ids never collide with accounts added in the UI)
+    SA.SEED_STAFF.forEach((s) => {
+      if (db.users.some((u) => u.email.toLowerCase() === s.email)) return;
+      let nid = s.id; if (db.users.some((u) => u.id === nid)) nid = `VS-${Math.max(0, ...db.users.map((u) => Number(String(u.id).replace(/\D/g, '')) || 0)) + 1}`;
+      db.users.push(Object.assign({}, s, { id: nid, lastLogin: SA.stampDaysAgo(s.lastLogin[0], s.lastLogin[1], s.lastLogin[2]) })); notes.push(`added ${nid} ${s.role}`);
+    });
+    // remote-support records: add the vendor approval step and a request expiry
+    (db.remoteSessions || []).forEach((s) => {
+      if (s.status === 'Requested' && !s.consentBy) s.status = 'Pending approval';
+      if (!s.expiresAt) s.expiresAt = new Date(new Date(s.requestedAt).getTime() + SA.REMOTE_REQUEST_HOURS * 3600000).toISOString();
+      if (s.approvedBy === undefined) s.approvedBy = s.status === 'Pending approval' ? null : 'Not recorded (before the approval step)';
+      if (!s.requestedById) { const u = db.users.find((x) => x.name === s.requestedBy); s.requestedById = u ? u.id : null; }
+      if (!s.assigneeId) s.assigneeId = s.requestedById;
+    });
+    if (notes.length) {
+      db.counters.AUD = (db.counters.AUD || 0) + 1;
+      db.audit.unshift({ id: `AUD-${String(db.counters.AUD).padStart(6, '0')}`, at: new Date().toISOString(), userId: null, userName: 'System', action: 'Vendor roles migrated', target: 'role:*', detail: `8-role model · ${notes.join(', ')}` });
+    }
+  });
 
   PP.seedData = function () {
     const T = PP.today(); const D = (n) => PP.addDays(T, n);
     const S = (days, h, m) => SA.stampDaysAgo(days, h, m);
     const rng = PP.rng(20261125);
 
-    /* ---------------------------------------------------------------- staff and roles (PD-033 pending) */
-    const roles = [
-      { id: 'owner', name: 'Owner', description: 'Everything, including staff and roles', permissions: ['*'] },
-      { id: 'sales', name: 'Sales', description: 'Demo leads, onboarding, customers (read)', permissions: ['dashboard.view', 'customers.view', 'onboarding.run', 'demo.manage', 'plans.manage', 'support.manage'] },
-      { id: 'support', name: 'Support', description: 'Tickets, announcements, remote support, fleet', permissions: ['dashboard.view', 'customers.view', 'support.manage', 'support.remote', 'fleet.view', 'domains.manage', 'branding.manage', 'demo.manage'] },
-      { id: 'billing', name: 'Billing', description: 'Vendor invoices, licences, lifecycle', permissions: ['dashboard.view', 'customers.view', 'billing.manage', 'licences.manage', 'customers.lifecycle'] },
-      { id: 'engineering', name: 'Release engineering', description: 'Releases, rollouts, fleet, global switches', permissions: ['dashboard.view', 'customers.view', 'releases.publish', 'fleet.view', 'entitlements.global', 'entitlements.manage', 'catalog.manage', 'audit.view'] },
-      { id: 'auditor', name: 'Auditor (read-only)', description: 'Read-only access and the audit log', permissions: ['dashboard.view', 'customers.view', 'fleet.view', 'audit.view'] },
-    ];
-    const users = [
-      { id: 'VS-1', name: 'Arif Hossain', email: 'arif@vendor.example', mobile: '01811-200001', role: 'owner', status: 'Active', mfa: true, lastLogin: S(0, 9, 5) },
-      { id: 'VS-2', name: 'Nusrat Jahan', email: 'nusrat@vendor.example', mobile: '01811-200002', role: 'sales', status: 'Active', mfa: true, lastLogin: S(0, 10, 12) },
-      { id: 'VS-3', name: 'Kamrul Hasan', email: 'kamrul@vendor.example', mobile: '01811-200003', role: 'support', status: 'Active', mfa: true, lastLogin: S(0, 8, 40) },
-      { id: 'VS-4', name: 'Tahmina Akter', email: 'tahmina@vendor.example', mobile: '01811-200004', role: 'billing', status: 'Active', mfa: true, lastLogin: S(1, 17, 2) },
-      { id: 'VS-5', name: 'Imran Chowdhury', email: 'imran@vendor.example', mobile: '01811-200005', role: 'engineering', status: 'Active', mfa: true, lastLogin: S(0, 11, 30) },
-      { id: 'VS-6', name: 'Sharmin Sultana', email: 'sharmin@vendor.example', mobile: '01811-200006', role: 'auditor', status: 'Disabled', mfa: true, lastLogin: S(42, 15, 0) },
-    ];
+    /* ---------------------------------------------------------------- staff and roles (D-036: 8 vendor roles, see SA.VENDOR_ROLES) */
+    const roles = SA.VENDOR_ROLES.map((r) => Object.assign({}, r, { permissions: r.permissions.slice() }));
+    const users = SA.SEED_STAFF.map((u) => Object.assign({}, u, { lastLogin: u.lastLogin ? S(u.lastLogin[0], u.lastLogin[1], u.lastLogin[2]) : null }));
 
     /* ---------------------------------------------------------------- configuration catalogues (D-020) */
     const businessTypes = [
@@ -270,10 +317,14 @@
       { id: id('ANN'), title: 'Owner daily summary paused', body: 'We have temporarily paused the WhatsApp owner summary while we fix duplicate messages. No data is affected.', audience: 'all', severity: 'Warning', status: 'Published', publishedAt: S(2), by: 'Kamrul Hasan', reads: 6 },
       { id: id('ANN'), title: 'Scheduled maintenance of the licence service', body: 'Licence validation will be unavailable for 30 minutes on Friday at 02:00. Your system keeps working; the last valid licence stays in force.', audience: 'all', severity: 'Info', status: 'Draft', publishedAt: null, by: 'Kamrul Hasan', reads: 0 },
     ];
+    /* Remote support: requested by vendor staff → approved by a different Support Manager / Super Admin → granted by the customer admin
+       → started → ended or expired automatically. Every session has a scope and an end time. */
+    const rx = (o) => Object.assign({ ticketId: null, consentBy: null, approvedBy: null, approvedById: null, approvedAt: null, start: null, end: null, startedAt: null, actions: [] }, o, { expiresAt: new Date(new Date(o.requestedAt).getTime() + 24 * 3600000).toISOString() });
     data.remoteSessions = [
-      { id: id('RSS'), customerId: 'CUS-0004', ticketId: 'TCK-0001', requestedBy: 'Imran Chowdhury', consentBy: 'Abdul Mukit (customer admin)', scope: 'Updater logs and migration status only (no patient records)', requestedAt: S(1, 11), start: S(1, 12), end: S(1, 14), status: 'Expired', actions: ['Read updater log', 'Ran migration dry-run', 'Session ended automatically after 2 hours'] },
-      { id: id('RSS'), customerId: 'CUS-0008', ticketId: 'TCK-0006', requestedBy: 'Kamrul Hasan', consentBy: null, scope: 'Backup job configuration', requestedAt: S(0, 11), start: null, end: null, status: 'Requested', actions: [] },
-      { id: id('RSS'), customerId: 'CUS-0001', ticketId: 'TCK-0003', requestedBy: 'Kamrul Hasan', consentBy: 'Clinic Administrator (customer admin)', scope: 'Branch settings screen (screen share)', requestedAt: S(40, 9), start: S(40, 10), end: S(40, 10, 30), status: 'Expired', actions: ['Viewed branch settings', 'Session ended by customer'] },
+      rx({ id: id('RSS'), customerId: 'CUS-0004', ticketId: 'TCK-0001', requestedBy: 'Imran Chowdhury', requestedById: 'VS-5', assigneeId: 'VS-5', approvedBy: 'Kamrul Hasan', approvedById: 'VS-3', approvedAt: S(1, 11, 20), consentBy: 'Abdul Mukit (customer admin)', scopeKind: 'Updater and logs', scope: 'Updater logs and migration status only (no patient records)', hours: 2, requestedAt: S(1, 11), start: S(1, 12), startedAt: S(1, 12, 5), end: S(1, 14), status: 'Expired', actions: ['Requested by Imran Chowdhury', 'Approved by Kamrul Hasan (Support Manager)', 'Consent granted by Abdul Mukit for 2 h', 'Started by Imran Chowdhury', 'Read updater log', 'Ran migration dry-run', 'Session ended automatically after 2 hours'] }),
+      rx({ id: id('RSS'), customerId: 'CUS-0008', ticketId: 'TCK-0006', requestedBy: 'Kamrul Hasan', requestedById: 'VS-3', assigneeId: 'VS-3', scopeKind: 'Configuration screens', scope: 'Backup job configuration', hours: 2, requestedAt: SA.stampHoursAgo(2), status: 'Pending approval', actions: ['Requested by Kamrul Hasan · needs approval by another Support Manager or a Super Admin'] }),
+      rx({ id: id('RSS'), customerId: 'CUS-0001', ticketId: 'TCK-0003', requestedBy: 'Kamrul Hasan', requestedById: 'VS-3', assigneeId: 'VS-3', approvedBy: 'Arif Hossain', approvedById: 'VS-1', approvedAt: S(40, 9, 30), consentBy: 'Clinic Administrator (customer admin)', scopeKind: 'Screen share', scope: 'Branch settings screen (screen share)', hours: 1, requestedAt: S(40, 9), start: S(40, 10), startedAt: S(40, 10), end: S(40, 10, 30), status: 'Ended', actions: ['Requested by Kamrul Hasan', 'Approved by Arif Hossain (Super Admin)', 'Consent granted for 1 h', 'Viewed branch settings', 'Session ended by customer'] }),
+      rx({ id: id('RSS'), customerId: 'CUS-0002', ticketId: 'TCK-0007', requestedBy: 'Sadia Afrin', requestedById: 'VS-9', assigneeId: 'VS-9', scopeKind: 'Configuration screens', scope: 'Domain settings screen only, to check the second domain', hours: 1, requestedAt: SA.stampHoursAgo(1), status: 'Pending approval', actions: ['Requested by Sadia Afrin · needs approval by a Support Manager or a Super Admin'] }),
     ];
 
     /* ------------------------------------------------------------------------------ demo and trial (D-024, D-027) */
@@ -301,7 +352,11 @@
     log(4, 'VS-1', 'Customer suspended', 'CUS-0006', 'Three invoices unpaid for more than 60 days');
     log(2, 'VS-5', 'Global feature switched off', 'reports.owner_daily_summary', 'Kill switch: duplicate WhatsApp summaries');
     log(6, 'VS-5', 'Release published', '1.5.0-rc.1', 'Early channel · signed');
-    log(1, 'VS-5', 'Remote support session', 'CUS-0004', 'Consented by customer admin · 2 hours · updater logs only');
+    log(1, 'VS-5', 'Remote support requested', 'CUS-0004', 'RSS-0001 · 2 h · Updater and logs: updater logs and migration status only');
+    log(1, 'VS-3', 'Remote support approved', 'CUS-0004', 'RSS-0001 · approved by Kamrul Hasan (Support Manager) · assigned to Imran Chowdhury');
+    log(1, 'VS-5', 'Remote support session started', 'CUS-0004', 'RSS-0001 · consented by customer admin · 2 h window');
+    log(0, 'VS-3', 'Remote support requested', 'CUS-0008', 'RSS-0002 · 2 h · Configuration screens: backup job configuration');
+    log(0, 'VS-9', 'Remote support requested', 'CUS-0002', 'RSS-0004 · 1 h · Configuration screens: domain settings screen only');
     log(0, 'VS-2', 'Demo sandbox created', 'SBX-0001', 'Care Plus Physiotherapy · 14-day trial');
     log(3, 'VS-2', 'Trial extended', 'SBX-0003', '+7 days · Jamuna Diagnostic Centre');
     audit.sort((a, b) => (a.at < b.at ? 1 : -1));

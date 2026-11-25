@@ -1217,7 +1217,8 @@
         ${PP.form.field({ name: 'name', label: 'Full name', required: true, value: rec.name })}
         ${PP.form.field({ name: 'email', label: 'Email (sign-in)', type: 'email', rule: 'email', required: true, value: rec.email })}
         ${PP.form.field({ name: 'mobile', label: 'Mobile', type: 'tel', rule: 'mobile', value: rec.mobile, hint: 'Used for sign-in codes.' })}
-        ${PP.form.field({ name: 'role', label: 'Role', type: 'select', required: true, value: rec.role, options: PP.db.roles.map((r) => [r.id, r.name]), disabled: self, hint: self ? 'You cannot change your own role.' : 'What this person may do in the software.' })}
+        ${PP.form.field({ name: 'role', label: 'Primary role', type: 'select', required: true, value: rec.role, options: PP.db.roles.filter((r) => !r.portal || r.id === 'external_referrer').map((r) => [r.id, r.name]), disabled: self, hint: self ? 'You cannot change your own role.' : 'What this person may do in the software.' })}
+        <div class="field full" data-field="roles"><span class="label">Additional roles (optional)</span><div class="adm-multirole">${PP.db.roles.filter((r) => !r.portal && !r.permissions.includes('*')).map((r) => `<label class="check small"><input type="checkbox" name="xr_${esc(r.id)}" ${(rec.roles || []).includes(r.id) ? 'checked' : ''} ${self ? 'disabled' : ''}> ${esc(r.name)}</label>`).join('')}</div><div class="hint">A user may hold several roles; permissions add up and the widest data scope applies.</div></div>
         <div class="field full" data-field="branches"><span class="label">Branch access<span class="req">*</span></span>
           <div class="row">${PP.db.branches.map((b) => `<label class="check"><input type="checkbox" name="br_${esc(b.id)}" ${rec.branchIds.includes(b.id) ? 'checked' : ''}> ${esc(b.name)}</label>`).join('')}</div>
           <div class="hint">Users see only data from these branches. Admins see all.</div><div class="error" role="alert">Select at least one branch.</div></div>
@@ -1236,7 +1237,8 @@
         if (bad) return false;
         const target = u || { id: PP.nextId('USR', 1), status: 'Invited', lastLogin: null, invitedAt: PP.nowStamp() };
         const prevRole = u ? u.role : null; const prevPro = u ? u.professionalId : null;
-        Object.assign(target, { name: v.name, email: v.email, mobile: v.mobile, role, branchIds: isAdminRole(roleObj) && !branchIds.length ? PP.db.branches.map((b) => b.id) : branchIds, mfa: !!v.mfa || !!mfaRequired, professionalId: v.professionalId || null });
+        const extra = self ? (rec.roles || []) : PP.db.roles.filter((r) => v[`xr_${r.id}`] && r.id !== role).map((r) => r.id);
+        Object.assign(target, { roles: extra, name: v.name, email: v.email, mobile: v.mobile, role, branchIds: isAdminRole(roleObj) && !branchIds.length ? PP.db.branches.map((b) => b.id) : branchIds, mfa: !!v.mfa || !!mfaRequired, professionalId: v.professionalId || null });
         if (!u) PP.db.users.push(target);
         if (prevPro && prevPro !== target.professionalId) { const p = PP.find.professional(prevPro); if (p && p.userId === target.id) p.userId = null; }
         if (target.professionalId) { const p = PP.find.professional(target.professionalId); if (p) p.userId = target.id; }
@@ -1276,13 +1278,13 @@
           getRows: () => PP.db.users, exportName: 'users', sortKey: 'name',
           search: { placeholder: 'Search name, email or mobile…', text: (u) => `${u.name} ${u.email} ${u.mobile}` },
           filters: [
-            { id: 'role', label: 'All roles', options: PP.db.roles.map((r) => [r.id, r.name]), match: (u, v) => u.role === v },
+            { id: 'role', label: 'All roles', options: PP.db.roles.map((r) => [r.id, r.name]), match: (u, v) => u.role === v || (u.roles || []).includes(v) },
             { id: 'status', label: 'Any status', options: [['Active', 'Active'], ['Invited', 'Invited'], ['Disabled', 'Disabled']], match: (u, v) => u.status === v },
           ],
           columns: [
             { key: 'name', label: 'Name', sort: (u) => u.name, render: (u) => `<div class="row adm-nowrap"><span class="avatar">${esc(PP.initials(u.name))}</span><div><b>${esc(u.name)}</b>${me && u.id === me.id ? ' <span class="badge info">You</span>' : ''}<span class="sub">${esc(u.mobile || '')}${u.professionalId ? ` · ${esc(PP.proShort(u.professionalId))}` : ''}</span></div></div>`, exportValue: (u) => u.name },
             { key: 'email', label: 'Email', sort: (u) => u.email, render: (u) => esc(u.email) },
-            { key: 'role', label: 'Role', sort: (u) => roleName(u.role), render: (u) => esc(roleName(u.role)) },
+            { key: 'role', label: 'Roles', sort: (u) => roleName(u.role), render: (u) => esc(PP.userRoleNames(u) || roleName(u.role)), exportValue: (u) => PP.userRoleNames(u) },
             { key: 'branches', label: 'Branches', render: (u) => (u.branchIds || []).map((b) => esc(PP.branchName(b))).join(', ') || '—' },
             { key: 'mfa', label: 'Two-step', render: (u) => (u.mfa ? PP.ui.badge('Enabled') : '<span class="muted small">Off</span>'), exportValue: (u) => (u.mfa ? 'Yes' : 'No') },
             { key: 'status', label: 'Status', sort: (u) => u.status, render: (u) => PP.ui.badge(u.status, u.status === 'Invited' ? 'info' : undefined), exportValue: (u) => u.status },
@@ -1323,39 +1325,53 @@
       }
 
       function drawRoles() {
-        const roles = PP.db.roles;
-        const me = PP.currentUser();
-        const groups = {};
-        PP.PERMISSIONS.forEach(([code, label]) => { const g = code.split('.')[0]; (groups[g] = groups[g] || []).push([code, label]); });
-        const count = (r) => PP.db.users.filter((u) => u.role === r.id).length;
-        pane.innerHTML = `<div class="card-body small muted adm-roles-note">Tick a box to grant a permission. Changes save immediately and are audited. The admin role always has every permission and is locked.</div>
-          <div class="table-wrap adm-matrix-wrap"><table class="table adm-matrix"><thead><tr><th scope="col" class="adm-mx-first">Permission</th>
-          ${roles.map((r) => `<th scope="col" class="center adm-rolecol"><div>${esc(r.name)}</div><span class="adm-rc-sub">${count(r)} user${count(r) === 1 ? '' : 's'}</span>
-            ${isAdminRole(r) ? `<span class="adm-lock" title="Locked">${PP.icon('lock')} Locked</span>` : r.system ? '<span class="adm-rc-sub">Built-in</span>' : `<button class="btn btn-sm btn-ghost" data-del-role="${esc(r.id)}" title="Delete role">${PP.icon('trash')}<span class="sr-only">Delete ${esc(r.name)}</span></button>`}</th>`).join('')}
-          </tr></thead><tbody>
-          ${Object.entries(groups).map(([g, perms]) => `<tr class="adm-mx-group"><td class="adm-mx-first" colspan="${roles.length + 1}">${esc(PERM_GROUPS[g] || (g === 'professionals' ? PP.t('professionals') : g))}</td></tr>
-            ${perms.map(([code, label]) => `<tr><td class="adm-mx-first"><b>${esc(label)}</b><span class="sub mono">${esc(code)}</span></td>
-              ${roles.map((r) => { const locked = isAdminRole(r); const on = locked || r.permissions.includes(code); return `<td class="center"><input type="checkbox" class="adm-cb" data-role="${esc(r.id)}" data-perm="${esc(code)}" ${on ? 'checked' : ''} ${locked ? 'disabled' : ''} aria-label="${esc(r.name)}: ${esc(label)}"></td>`; }).join('')}</tr>`).join('')}`).join('')}
-          </tbody></table></div>`;
-        $$('[data-perm]', pane).forEach((cb) => cb.addEventListener('change', () => {
-          const r = roles.find((x) => x.id === cb.dataset.role); const code = cb.dataset.perm;
-          const label = (PP.PERMISSIONS.find((p) => p[0] === code) || [code, code])[1];
-          if (isAdminRole(r)) { cb.checked = true; return; }
-          if (!cb.checked && me && me.role === r.id && code === 'users.manage') { cb.checked = true; PP.ui.toast('You cannot remove your own access to Users & roles.', 'error'); return; }
-          if (cb.checked) { if (!r.permissions.includes(code)) r.permissions.push(code); } else r.permissions = r.permissions.filter((p) => p !== code);
-          PP.audit(cb.checked ? 'Permission granted' : 'Permission revoked', r.id, `${r.name} · ${label} (${code})`);
-          PP.save();
-          PP.ui.toast(`${esc(r.name)}: ${cb.checked ? 'can now' : 'can no longer'} ${esc(label.toLowerCase())}`, cb.checked ? 'positive' : 'info');
-          if (me && me.role === r.id) rebuild();
-        }));
-        $$('[data-del-role]', pane).forEach((b) => b.addEventListener('click', async () => {
-          const r = roles.find((x) => x.id === b.dataset.delRole);
-          if (count(r)) { PP.ui.toast(`${esc(r.name)} is assigned to ${count(r)} user(s). Move them to another role first.`, 'error'); return; }
-          const ok = await PP.ui.confirm({ title: `Delete role ${esc(r.name)}?`, message: 'The role and its permission set are removed. No user has this role.', confirmLabel: 'Delete role', danger: true });
-          if (!ok) return;
-          PP.db.roles = PP.db.roles.filter((x) => x !== r);
-          PP.audit('Role deleted', r.id, r.name); PP.save(); PP.ui.toast('Role deleted'); draw();
-        }));
+        const R = PP.RBAC; const roles = PP.db.roles; const me = PP.currentUser();
+        const count = (r) => PP.db.users.filter((u) => u.role === r.id || (u.roles || []).includes(r.id)).length;
+        let selId = pane.dataset.sel && roles.some((r) => r.id === pane.dataset.sel) ? pane.dataset.sel : 'frontdesk';
+        const groups = {}; roles.forEach((r) => { const gname = r.group || 'Custom'; (groups[gname] = groups[gname] || []).push(r); });
+        const STD = ['read', 'create', 'update', 'delete', 'approve', 'export'];
+        const paint = () => {
+          const r = roles.find((x) => x.id === selId); const locked = isAdminRole(r);
+          const has = (code) => locked || r.permissions.includes(code);
+          pane.innerHTML = `<div class="adm-rbac">
+            <aside class="adm-rlist" aria-label="Roles">${Object.entries(groups).map(([gname, list]) => `<div class="adm-rgroup">${esc(gname)}</div>${list.map((x) => `<button type="button" class="adm-rbtn ${x.id === selId ? 'on' : ''}" data-sel="${esc(x.id)}"><span>${esc(x.name)}</span><span class="adm-rc-sub">${x.portal ? 'portal' : count(x) + ' user' + (count(x) === 1 ? '' : 's')}</span></button>`).join('')}`).join('')}</aside>
+            <section class="adm-rdetail">
+              <div class="row between adm-rhead"><div><h3>${esc(r.name)} ${locked ? `<span class="badge neutral">${PP.icon('lock')} Locked</span>` : r.system ? '<span class="badge info">Built-in</span>' : '<span class="badge lavender">Custom</span>'}</h3>
+                <div class="small muted">${esc(r.note || (r.system ? 'Built-in role. You can change its permissions.' : 'Custom role.'))}</div></div>
+                <div class="row">${!locked ? `<label class="check small"><input type="checkbox" data-org ${r.org ? 'checked' : ''}> Organization-wide (all branches)</label>` : ''}${!r.system ? `<button class="btn btn-sm btn-danger" data-del-role="${esc(r.id)}">${PP.icon('trash')} Delete role</button>` : ''}</div></div>
+              ${PP.ui.alert('info', 'Role ≠ professional type (D-020). Clinical create/update/issue also needs a professional type that allows it. Approvals use maker-checker: the person who prepared an item cannot approve it.')}
+              <div class="table-wrap mt-3"><table class="table adm-pgrid"><thead><tr><th>Module</th>${STD.map((a) => `<th class="center">${esc(R.ACTION_LABEL[a])}</th>`).join('')}<th>Special</th><th>Data scope</th></tr></thead><tbody>
+              ${R.MODULES.map(([m, label, std, spec, scoped]) => {
+                const acts = std.split('').map((k) => R.ACT[k]);
+                return `<tr><td><b>${esc(label)}</b><span class="sub mono">${esc(m)}</span></td>
+                  ${STD.map((a) => (acts.includes(a) ? `<td class="center"><input type="checkbox" class="adm-cb" data-code="${m}.${a}" ${has(m + '.' + a) ? 'checked' : ''} ${locked ? 'disabled' : ''} aria-label="${esc(label)} ${a}"></td>` : '<td class="center muted">·</td>')).join('')}
+                  <td>${spec.map((sp) => `<label class="check small"><input type="checkbox" data-code="${m}.${sp}" ${has(m + '.' + sp) ? 'checked' : ''} ${locked ? 'disabled' : ''}> ${esc(R.ACTION_LABEL[sp] || sp)}</label>`).join(' ') || '<span class="muted">—</span>'}</td>
+                  <td>${scoped ? `<select class="select adm-scope" data-scope="${m}" ${locked ? 'disabled' : ''}>${R.SCOPES.map(([v, l]) => `<option value="${v}" ${(locked ? 'org' : (r.scopes && r.scopes[m]) || (r.org ? 'org' : 'branch')) === v ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select>` : '<span class="muted small">—</span>'}</td></tr>`;
+              }).join('')}</tbody></table></div>
+            </section></div>`;
+          $$('[data-sel]', pane).forEach((b) => b.addEventListener('click', () => { selId = b.dataset.sel; pane.dataset.sel = selId; paint(); }));
+          $$('[data-code]', pane).forEach((cb) => cb.addEventListener('change', () => {
+            const code = cb.dataset.code; const label = (PP.PERMISSIONS.find((p) => p[0] === code) || [code, code])[1];
+            if (!cb.checked && me && PP.userRoles(me).includes(r) && /^users\.(update|create)$/.test(code) && PP.userRoles(me).filter((x) => x !== r).every((x) => !x.permissions.includes(code) && !x.permissions.includes('*'))) { cb.checked = true; PP.ui.toast('You cannot remove your own access to Users & roles.', 'error'); return; }
+            if (cb.checked) { if (!r.permissions.includes(code)) r.permissions.push(code); } else r.permissions = r.permissions.filter((p) => p !== code);
+            PP.audit(cb.checked ? 'Permission granted' : 'Permission revoked', r.id, `${r.name} · ${label} (${code})`); PP.save();
+            PP.ui.toast(`${esc(r.name)}: ${cb.checked ? 'granted' : 'removed'} ${esc(label)}`, cb.checked ? 'positive' : 'info');
+            if (me && PP.userRoles(me).includes(r)) rebuild();
+          }));
+          $$('[data-scope]', pane).forEach((sel) => sel.addEventListener('change', () => {
+            r.scopes = r.scopes || {}; const prev = r.scopes[sel.dataset.scope]; r.scopes[sel.dataset.scope] = sel.value;
+            PP.audit('Data scope changed', r.id, `${r.name} · ${sel.dataset.scope}: ${prev || '—'} → ${sel.value}`); PP.save(); PP.ui.toast(`${esc(r.name)}: ${esc(sel.dataset.scope)} scope set to ${esc(sel.value)}`);
+          }));
+          const org = $('[data-org]', pane); if (org) org.addEventListener('change', () => { r.org = org.checked; PP.audit('Branch access changed', r.id, `${r.name}: ${org.checked ? 'organization-wide' : 'assigned branches only'}`); PP.save(); PP.ui.toast(`${esc(r.name)}: ${org.checked ? 'all branches' : 'assigned branches only'}`); });
+          $$('[data-del-role]', pane).forEach((b) => b.addEventListener('click', async () => {
+            if (count(r)) { PP.ui.toast(`${esc(r.name)} is assigned to ${count(r)} user(s). Move them to another role first.`, 'error'); return; }
+            const ok = await PP.ui.confirm({ title: `Delete role ${esc(r.name)}?`, message: 'The role and its permission set are removed. No user has this role.', confirmLabel: 'Delete role', danger: true });
+            if (!ok) return;
+            PP.db.roles = PP.db.roles.filter((x) => x !== r); pane.dataset.sel = '';
+            PP.audit('Role deleted', r.id, r.name); PP.save(); PP.ui.toast('Role deleted'); draw();
+          }));
+        };
+        paint();
       }
 
       function addRoleModal() {

@@ -541,7 +541,7 @@
   }
 
   PP.route('/demo', {
-    title: 'Demo sign-up leads', perm: 'customers.view',
+    title: 'Demo sign-up leads', perm: 'demo.manage',
     render({ el }) {
       const can = PP.can('demo.manage');
       const draw = () => {
@@ -609,7 +609,7 @@
   });
 
   PP.route('/demo/sandboxes', {
-    title: 'Demo sandboxes', perm: 'customers.view',
+    title: 'Demo sandboxes', perm: 'demo.manage',
     render({ el, query }) {
       const can = PP.can('demo.manage');
       el.innerHTML = `${PP.ui.pageHead({ title: 'Demo & trial · sandboxes', subtitle: `Private sandbox per prospect, on the vendor demo environment. Deleted ${deleteDays()} days after the trial ends.`, crumbs: [['Demo & trial', '#/demo'], ['Sandboxes']], actions: `<a class="btn" href="#/demo">${PP.icon('users')} Leads</a>${can ? `<button class="btn btn-primary" data-cleanup>${PP.icon('trash')} Run clean-up</button>` : ''}` })}

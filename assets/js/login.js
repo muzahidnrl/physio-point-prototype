@@ -97,7 +97,7 @@
   function finish(u) {
     PP.db.session.userId = u.id; PP.db.session.branchId = 'ALL'; u.lastLogin = PP.nowStamp();
     PP.audit('Signed in', u.id, u.email); PP.save();
-    location.href = 'app.html#/dashboard';
+    location.href = 'app.html' + (PP.can('dashboard.view') ? '#/dashboard' : PP.can('referrals.read') ? '#/referrals' : '#/dashboard');
   }
 
   renderLogin();

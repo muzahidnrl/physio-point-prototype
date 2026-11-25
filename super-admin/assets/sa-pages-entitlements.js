@@ -202,7 +202,7 @@
 
   /* ======================================================= /entitlements (global) */
   PP.route('/entitlements', {
-    title: 'Entitlements', perm: 'customers.view',
+    title: 'Entitlements', perm: SA.PAGE_PERMS.entitlements,
     render({ el, query }) {
       let tab = query.tab || 'global'; const filt = { q: '', mod: '', view: '' };
       el.innerHTML = PP.ui.pageHead({ title: 'Entitlements', subtitle: 'Global feature switches and per-customer entitlement sets. Every feature is authorised at the customer’s API; hiding a menu is not enough.', crumbs: [['Dashboard', '#/dashboard'], ['Entitlements']] })
@@ -305,7 +305,7 @@
 
   /* ================================================= /entitlements/:id (customer) */
   PP.route('/entitlements/:id', {
-    title: 'Customer entitlements', perm: 'customers.view',
+    title: 'Customer entitlements', perm: SA.PAGE_PERMS.entitlements,
     render({ el, params, query }) {
       const c = SA.customer(params.id);
       if (!c) { el.innerHTML = PP.ui.notFound(`/entitlements/${params.id}`); return; }
@@ -460,7 +460,7 @@
 
   /* ============================================================ /plans */
   PP.route('/plans', {
-    title: 'Plans & subscriptions', perm: 'customers.view',
+    title: 'Plans & subscriptions', perm: SA.PAGE_PERMS.plans,
     render({ el }) {
       const onPlan = (p) => PP.db.customers.filter((c) => c.planId === p.id).length;
       el.innerHTML = PP.ui.pageHead({ title: 'Plans & subscriptions', subtitle: 'A plan bundles features and default usage limits. Customer overrides are managed under Entitlements.', crumbs: [['Dashboard', '#/dashboard'], ['Plans & subscriptions']], actions: `<button class="btn btn-primary" data-new>${PP.icon('plus')} New plan</button>` })
@@ -470,7 +470,7 @@
           <div class="small muted">${esc(p.description || '')} · <code>${esc(p.code)}</code></div>
           <div class="price">${PP.fmt.money(p.priceMonthly)} <small>/ month</small></div><div class="small muted">${PP.fmt.money(p.priceYearly)} / year</div>
           <dl><dt>Features</dt><dd>${p.features.length} + ${SA.CORE_FEATURES.length} core</dd>${SA.LIMITS.map((l) => `<dt>${esc(l.label)}</dt><dd>${esc(SA.fmtLimit(p.limits[l.code]))}</dd>`).join('')}<dt>Customers</dt><dd>${onPlan(p)}</dd></dl>
-          <div class="foot"><a class="btn btn-sm" href="#/plans/${p.id}">${PP.icon('edit')} Edit</a><button class="btn btn-sm btn-ghost" data-dup="${p.id}">Duplicate</button></div></div>`).join('')}</div>`
+          <div class="foot"><a class="btn btn-sm" href="#/plans/${p.id}">${PP.can('plans.manage') ? `${PP.icon('edit')} Edit` : `${PP.icon('eye')} View`}</a><button class="btn btn-sm btn-ghost" data-dup="${p.id}">Duplicate</button></div></div>`).join('')}</div>`
         + PP.ui.card({ title: 'Subscriptions', cls: 'mt-5', flush: true, body: '<div data-subs></div>' });
       PP.$('[data-new]', el).addEventListener('click', () => { if (need('plans.manage', 'create plans')) location.hash = '#/plans/new'; });
       PP.$$('[data-dup]', el).forEach((b) => b.addEventListener('click', () => {
@@ -503,7 +503,7 @@
 
   /* ============================================================ /plans/:id */
   PP.route('/plans/:id', {
-    title: (p) => (p.id === 'new' ? 'New plan' : 'Edit plan'), perm: 'customers.view',
+    title: (p) => (p.id === 'new' ? 'New plan' : 'Edit plan'), perm: SA.PAGE_PERMS.plans,
     render({ el, params }) {
       const isNew = params.id === 'new';
       const src = isNew ? { id: '', code: '', name: '', description: '', priceMonthly: '', priceYearly: '', features: [], limits: { branches: 1, users: 5, professionals: 3, patients: 2000, appointments_monthly: 1000 }, status: 'Draft' } : SA.plan(params.id);
@@ -597,7 +597,7 @@
   const yes = (b) => `<span class="sae-cap ${b ? 'yes' : 'no'}" title="${b ? 'Yes' : 'No'}">${PP.icon(b ? 'checkCircle' : 'x')}<span class="sr-only">${b ? 'Yes' : 'No'}</span></span>`;
 
   PP.route('/catalog/business-types', {
-    title: 'Business types', perm: 'customers.view',
+    title: 'Business types', perm: 'catalog.manage',
     render({ el }) {
       el.innerHTML = PP.ui.pageHead({ title: 'Business types', subtitle: 'A business type supplies default terminology, modules, professional types and form templates (D-020). Customers can still override terminology.', crumbs: [['Configuration'], ['Business types']], actions: `<button class="btn btn-primary" data-new>${PP.icon('plus')} New business type</button>` })
         + PP.ui.card({ flush: true, body: '<div data-t></div>' });
@@ -652,7 +652,7 @@
 
   const CAPS = [['canBeBooked', 'Can be booked'], ['canRecordClinical', 'Records clinical notes'], ['canPrescribeExercise', 'Prescribes exercise'], ['canPrescribeMedication', 'Prescribes medication'], ['canIssueCertificate', 'Issues certificates']];
   PP.route('/catalog/professional-types', {
-    title: 'Professional types', perm: 'customers.view',
+    title: 'Professional types', perm: 'catalog.manage',
     render({ el }) {
       el.innerHTML = PP.ui.pageHead({ title: 'Professional types', subtitle: 'Capabilities per professional type. Customers can add their own types later.', crumbs: [['Configuration'], ['Professional types']], actions: `<button class="btn btn-primary" data-new>${PP.icon('plus')} New professional type</button>` })
         + PP.ui.alert('info', '<b>D-020:</b> a professional type is <b>never</b> a user role. Prescribing rights are a capability of the type, not an assumption — not every professional may prescribe. <code>prescriptions.medication_catalog</code> needs a type with “prescribes medication”.')
@@ -701,7 +701,7 @@
 
   const KINDS = ['Assessment', 'Encounter', 'Prescription', 'Consent', 'Order', 'Report', 'Care plan', 'Intake'];
   PP.route('/catalog/forms', {
-    title: 'Clinical form templates', perm: 'customers.view',
+    title: 'Clinical form templates', perm: 'catalog.manage',
     render({ el }) {
       el.innerHTML = PP.ui.pageHead({ title: 'Clinical form templates', subtitle: 'Vendor-maintained form templates offered to customers by business type. Templates hold field definitions only — never patient answers.', crumbs: [['Configuration'], ['Clinical form templates']], actions: `<button class="btn btn-primary" data-new>${PP.icon('plus')} New template</button>` })
         + PP.ui.card({ flush: true, body: '<div data-t></div>' });

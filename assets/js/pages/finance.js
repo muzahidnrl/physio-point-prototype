@@ -27,7 +27,7 @@
   const user = () => PP.currentUser() || {};
   const userName = (id) => { const u = id ? PP.find.user(id) : null; return u ? u.name : '—'; };
   const catName = (id) => { const c = (PP.db.financeCategories || []).find((x) => x.id === id); return c ? c.name : id || '—'; };
-  const userBranches = () => { const u = user(); return PP.db.branches.filter((b) => u.role === 'admin' || (u.branchIds || []).includes(b.id)); };
+  const userBranches = () => { const u = user(); return PP.db.branches.filter((b) => PP.isOrgWide() || (u.branchIds || []).includes(b.id)); };
   const matchBranch = (rec, sel) => !sel || sel === 'ALL' || rec.branchId === sel;
   const branchLabel = (sel) => (!sel || sel === 'ALL' ? 'All branches' : PP.branchName(sel));
   const isClosed = (branchId, date) => (PP.db.cashClosings || []).some((c) => c.branchId === branchId && c.date === date && c.status === 'Closed');
@@ -732,6 +732,7 @@
               <tbody>${inv.lines.map((l) => `<tr><td>${esc(l.description || PP.serviceName(l.serviceId))}${l.overrideReason ? `<span class="sub">Default ${money(l.defaultPrice)} · ${esc(l.overrideReason)}</span>` : ''}</td><td class="right mono">${esc(l.qty)}</td><td class="right mono">${money(l.unitPrice)}</td><td class="right mono">${money(PP.bill.lineTotal(l))}</td></tr>`).join('')}</tbody>
               <tfoot><tr><td colspan="3">Gross</td><td class="right mono">${money(t.gross)}</td></tr>${t.discount ? `<tr><td colspan="3">Discount${inv.discountReason ? ` · ${esc(inv.discountReason)}` : ''}</td><td class="right mono">−${money(t.discount)}</td></tr>` : ''}<tr><td colspan="3">Payable</td><td class="right mono">${money(t.payable)}</td></tr></tfoot></table></div></div></section>
 
+            ${refundReqHtml(inv)}
             <section class="card"><div class="card-head"><h2>Payment history</h2></div><div class="card-body flush" data-pays></div></section>
             <section class="card"><div class="card-head"><h2>Commission entries from this invoice</h2></div><div class="card-body" data-com></div></section>
           </div>
@@ -771,6 +772,7 @@
             $$('[data-complete]', c).forEach((b) => b.addEventListener('click', () => { PP.bill.completePayment(b.dataset.complete); PP.save(); PP.ui.toast('Payment marked completed. Income and commission were recorded.'); draw(); }));
             $$('[data-fail]', c).forEach((b) => b.addEventListener('click', async () => { const ok = await PP.ui.confirm({ title: 'Mark payment as failed?', message: 'The payment will not count as collected and earns no commission (D-025).', confirmLabel: 'Mark failed', danger: true }); if (!ok) return; PP.bill.failPayment(b.dataset.fail); PP.save(); PP.ui.toast('Payment marked failed', 'warning'); draw(); }));
             $$('[data-refund]', c).forEach((b) => b.addEventListener('click', () => refundModal(PP.find.payment(b.dataset.refund), inv, draw)));
+            bindRefundReqs(el, inv, draw);
             $$('[data-reverse]', c).forEach((b) => b.addEventListener('click', async () => {
               const p = PP.find.payment(b.dataset.reverse);
               const res = await PP.ui.confirm({ title: `Reverse ${esc(p.id)}?`, message: `The payment of ${money(p.amount)} (${esc(p.method)}) will be reversed. Its income entry and commission are reversed too (D-025 rule 5). This cannot be undone.`, confirmLabel: 'Reverse payment', danger: true, reasonLabel: 'Reason for the reversal', reasonRequired: true });
@@ -829,6 +831,28 @@
     });
   }
 
+  /* Refund requests (maker-checker, D-036) */
+  function refundReqHtml(inv) {
+    const list = (PP.db.refundRequests || []).filter((r) => r.invoiceId === inv.id && r.status === 'Pending');
+    if (!list.length) return '';
+    const canApprove = PP.can('billing.approve');
+    return `<section class="card"><div class="card-head"><h2>Refunds waiting for approval</h2><span class="badge warning">Maker-checker</span></div><div class="card-body flush"><div class="table-wrap"><table class="table"><thead><tr><th>Request</th><th>Payment</th><th class="right">Amount</th><th>Reason</th><th>Requested by</th><th></th></tr></thead><tbody>${list.map((r) => {
+      const same = r.requestedBy === user().id;
+      return `<tr><td class="mono">${esc(r.id)}</td><td class="mono">${esc(r.paymentId)}</td><td class="right">${money(r.amount)}</td><td>${esc(r.reason)}</td><td>${esc(userName(r.requestedBy))}<span class="sub">${PP.fmt.stamp(r.requestedAt)}</span></td><td><div class="row-actions">${canApprove && !same ? `<button class="btn btn-sm btn-primary" data-rq-ok="${esc(r.id)}">Approve</button><button class="btn btn-sm btn-ghost" data-rq-no="${esc(r.id)}">Reject</button>` : `<span class="small muted">${same ? 'You requested it — another person approves' : 'Waiting for an approver'}</span>`}</div></td></tr>`;
+    }).join('')}</tbody></table></div></div></section>`;
+  }
+  function bindRefundReqs(el, inv, redraw) {
+    $$('[data-rq-ok]', el).forEach((b) => { if (b.dataset.bound) return; b.dataset.bound = 1; b.addEventListener('click', async () => {
+      const r = PP.db.refundRequests.find((x) => x.id === b.dataset.rqOk); const mc = PP.makerChecker(r.requestedBy, 'refund'); if (mc) { PP.ui.toast(mc, 'error'); return; }
+      const ok = await PP.ui.confirm({ title: `Approve refund ${esc(r.id)}?`, message: `${money(r.amount)} by ${esc(r.method)} · ${esc(r.reason)}. The money goes back to the patient and commission is adjusted.`, confirmLabel: 'Approve refund' }); if (!ok) return;
+      PP.bill.refund({ paymentId: r.paymentId, amount: r.amount, method: r.method, reason: `${r.reason} (approved ${r.id})` });
+      r.status = 'Approved'; r.approvedBy = user().id; r.approvedAt = PP.nowStamp(); PP.audit('Refund approved', r.invoiceId, `${r.id} · ${money(r.amount)} · maker ${userName(r.requestedBy)}`); PP.save(); PP.ui.toast('Refund approved and recorded'); redraw();
+    }); });
+    $$('[data-rq-no]', el).forEach((b) => { if (b.dataset.bound) return; b.dataset.bound = 1; b.addEventListener('click', async () => {
+      const r = PP.db.refundRequests.find((x) => x.id === b.dataset.rqNo); const res = await PP.ui.confirm({ title: `Reject refund ${esc(r.id)}?`, message: 'The request is closed. Nothing is refunded.', confirmLabel: 'Reject', danger: true, reasonLabel: 'Reason (optional)' }); if (!res) return;
+      r.status = 'Rejected'; r.approvedBy = user().id; r.approvedAt = PP.nowStamp(); PP.audit('Refund rejected', r.invoiceId, `${r.id}${res.reason ? ' · ' + res.reason : ''}`); PP.save(); PP.ui.toast('Refund request rejected', 'info'); redraw();
+    }); });
+  }
   function refundModal(pay, inv, onDone) {
     const left = r2(Math.min(pay.amount - refundedOf(pay.id), PP.bill.totals(inv).net));
     PP.ui.modal({
@@ -838,14 +862,18 @@
         ${PP.form.field({ name: 'amount', label: 'Refund amount (BDT)', type: 'number', required: true, rule: 'positive', min: 0, step: 50, value: left })}
         ${PP.form.field({ name: 'method', label: 'Refund method', type: 'select', placeholder: false, options: PP.PAYMENT_METHODS, value: PP.PAYMENT_METHODS.includes(pay.method) ? pay.method : 'Cash' })}
         ${PP.form.field({ name: 'reason', label: 'Reason', type: 'textarea', required: true, full: true, rows: 2 })}</form>`,
-      buttons: [{ label: 'Cancel', kind: 'ghost' }, { label: 'Record refund', kind: 'danger solid', onClick: async ({ body }) => {
+      buttons: [{ label: 'Cancel', kind: 'ghost' }, { label: 'Request refund', kind: 'danger solid', onClick: async ({ body }) => {
         const form = $('form', body); if (!PP.form.validate(form)) return false;
         const d = PP.form.read(form); const amt = r2(d.amount);
         if (amt > left) { PP.form.setError(form, 'amount', `The refund cannot be more than ${money(left)}.`); return false; }
         if (d.method === 'Cash' && isClosed(inv.branchId, PP.today())) { PP.form.setError(form, 'method', `Today's cash day is closed for ${PP.branchName(inv.branchId)}. Choose another method.`); return false; }
         await PP.sleep(300);
-        PP.bill.refund({ paymentId: pay.id, amount: amt, method: d.method, reason: d.reason });
-        PP.save(); PP.ui.toast(`Refund of ${money(amt)} recorded`); onDone();
+        // Maker-checker (D-036): the refund is a request until a different person with billing.approve approves it.
+        const rq = { id: PP.nextId('RFQ'), paymentId: pay.id, invoiceId: inv.id, branchId: inv.branchId, amount: amt, method: d.method, reason: d.reason, requestedBy: user().id, requestedAt: PP.nowStamp(), status: 'Pending' };
+        (PP.db.refundRequests = PP.db.refundRequests || []).push(rq);
+        PP.audit('Refund requested', inv.id, `${rq.id} · ${money(amt)} · ${d.reason}`);
+        PP.notify('Refund waiting for approval', `${money(amt)} on ${inv.id} · requested by ${user().name}`, `#/billing/${inv.id}`);
+        PP.save(); PP.ui.toast(`Refund request ${rq.id} sent for approval (maker-checker).`, 'info', 4200); onDone();
       } }],
     });
   }
@@ -1160,7 +1188,12 @@
           { key: 'cnt', label: 'Counted', align: 'right', render: (c) => money(c.counted), exportValue: (c) => c.counted },
           { key: 'diff', label: 'Difference', sort: (c) => c.difference, render: (c) => diffBadge(c.difference), exportValue: (c) => c.difference },
           { key: 'by', label: 'Closed by', render: (c) => `${esc(userName(c.closedBy))}${c.note ? `<span class="sub">${esc(c.note)}</span>` : ''}`, exportValue: (c) => userName(c.closedBy) },
+          { key: 'appr', label: 'Approved (checker)', render: (c) => (c.approvedBy ? `${esc(userName(c.approvedBy))}` : PP.can('finance.approve') && c.closedBy !== user().id ? `<button class="btn btn-sm" data-cls-ok="${esc(c.id)}">Approve</button>` : `<span class="badge warning">Waiting</span>`), exportValue: (c) => (c.approvedBy ? userName(c.approvedBy) : 'Waiting') },
         ],
+        afterDraw: (tb) => $$('[data-cls-ok]', tb).forEach((b) => b.addEventListener('click', (ev) => {
+          ev.stopPropagation(); const c = PP.db.cashClosings.find((x) => x.id === b.dataset.clsOk); const mc = PP.makerChecker(c.closedBy, 'cash closing'); if (mc) { PP.ui.toast(mc, 'error'); return; }
+          c.approvedBy = user().id; c.approvedAt = PP.nowStamp(); PP.audit('Cash day approved', c.id, `${PP.branchName(c.branchId)} · ${c.date} · closed by ${userName(c.closedBy)}`); PP.save(); PP.ui.toast('Cash day approved'); past.refresh();
+        })),
         onRowClick: (c) => { st.branch = c.branchId; st.date = c.date; $('[data-br]', el).value = c.branchId; $('[data-date]', el).value = c.date; draw(); window.scrollTo({ top: 0, behavior: 'smooth' }); },
         empty: { icon: 'lock', title: 'No closings yet', text: 'Closed days appear here.' },
       });
@@ -1342,7 +1375,9 @@
     }
     async function approve(id) {
       const s = PP.db.settlements.find((x) => x.id === id);
-      const same = s.preparedBy === user().id;
+      if (!PP.can('commissions.approve')) { PP.ui.toast('Your role cannot approve settlements.', 'error'); return; }
+      const mc = PP.makerChecker(s.preparedBy, 'settlement'); if (mc) { PP.ui.toast(mc, 'error', 4200); return; }
+      const same = false;
       const ok = await PP.ui.confirm({ title: `Approve ${esc(s.id)}?`, message: `${esc(PP.proName(s.professionalId))} · ${money(s.total)}. Approving does not pay it; the payout is recorded separately (D-025 rule 7).${same ? '<br><br><b>Note:</b> you also prepared this settlement. Where the clinic has enough staff, a different person should approve it.' : ''}`, confirmLabel: 'Approve settlement' });
       if (!ok) return;
       s.status = 'Approved'; s.approvedBy = user().id; s.approvedAt = PP.nowStamp();

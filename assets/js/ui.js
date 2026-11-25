@@ -211,7 +211,7 @@
         ${cfg.search ? `<div class="grow input-icon">${PP.icon('search')}<input class="input" type="search" data-q placeholder="${esc(cfg.search.placeholder || 'Search…')}" aria-label="${esc(cfg.search.placeholder || 'Search')}"></div>` : ''}
         ${(cfg.filters || []).map((f) => `<select class="select" style="width:auto;min-width:150px" data-f="${f.id}" aria-label="${esc(f.label)}"><option value="">${esc(f.label)}</option>${f.options.map(([v, l]) => `<option value="${esc(v)}" ${state.filters[f.id] === v ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select>`).join('')}
         ${cfg.tools || ''}
-        ${cfg.exportName ? `<button class="btn" data-export>${PP.icon('download')} Export</button>` : ''}
+        ${cfg.exportName && (cfg.exportPerm ? PP.can(cfg.exportPerm) : (!PP.canExportHere || PP.canExportHere())) ? `<button class="btn" data-export>${PP.icon('download')} Export</button>` : ''}
       </div>` : ''}
       <div class="table-wrap"><table class="table"><thead><tr>${cfg.columns.map((c) => `<th class="${c.sort ? 'sortable' : ''} ${c.align === 'right' ? 'right' : ''}" ${c.sort ? `data-sort="${c.key}"` : ''} scope="col">${esc(c.label)}${c.sort ? ' <span data-arrow></span>' : ''}</th>`).join('')}</tr></thead><tbody></tbody><tfoot></tfoot></table></div>
       <div class="table-foot"><div class="muted small" data-count></div><div class="row"><label class="small muted" for="ps-${cfg.exportName || 'x'}">Show</label><select class="select" style="width:auto;height:32px" data-ps id="ps-${cfg.exportName || 'x'}">${[5, 10, 25, 50].map((n) => `<option ${n === state.pageSize ? 'selected' : ''}>${n}</option>`).join('')}</select><div class="pager" data-pager></div></div></div>`;

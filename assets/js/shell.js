@@ -44,6 +44,7 @@
       { label: 'Items & Stock', href: '#/inventory' },
       { label: 'Suppliers', href: '#/inventory/suppliers' },
     ] },
+    { id: 'myreferrals', label: 'My Referrals', icon: 'send', href: '#/referrals', perm: 'referrals.read', when: () => PP.scopeOf('referrals') === 'own' },
     { id: 'mycommission', label: 'My Commission', icon: 'coins', href: '#/commissions', perm: 'commissions.view_own', hideIf: 'commissions.manage' },
     { id: 'services', label: 'Services & Pricing', icon: 'tag', href: '#/services', perm: 'services.manage' },
     { id: 'professionals', label: () => PP.t('professionals'), icon: 'stethoscope', perm: 'professionals.view', children: [
@@ -64,6 +65,8 @@
     { id: 'support', label: 'Help & Support', icon: 'info', href: '#/support', perm: 'support.use' },
   ];
   const lbl = (x) => (typeof x === 'function' ? x() : x);
+  /** First page this user may open (External Referrer has no dashboard, for example). */
+  PP.homeHash = () => { for (const it of PP.NAV) { if (!visible(it)) continue; if (it.href) return it.href; const c = (it.children || []).find(visible); if (c) return c.href; } return '#/dashboard'; };
   const visible = (item) => (!item.perm || PP.can(item.perm)) && !(item.hideIf && PP.can(item.hideIf)) && (!item.when || item.when());
 
   function navHtml() {
@@ -97,7 +100,7 @@
             <div class="page-title" id="page-title"></div>
             <div class="spacer"></div>
             <div class="tb-group hide-md" ${showBranch ? '' : 'hidden style="display:none"'}><span class="tb-label">Branch</span>
-              <select class="tb-select" data-branch aria-label="Active branch"><option value="ALL">All branches</option>${PP.db.branches.filter((b) => u.role === 'admin' || u.branchIds.includes(b.id)).map((b) => `<option value="${b.id}" ${PP.activeBranchId() === b.id ? 'selected' : ''}>${esc(b.name)}</option>`).join('')}</select></div>
+              <select class="tb-select" data-branch aria-label="Active branch"><option value="ALL">All branches</option>${PP.db.branches.filter((b) => PP.isOrgWide() || u.branchIds.includes(b.id)).map((b) => `<option value="${b.id}" ${PP.activeBranchId() === b.id ? 'selected' : ''}>${esc(b.name)}</option>`).join('')}</select></div>
             <div class="tb-group hide-md" ${isAdmin ? '' : 'hidden style="display:none"'} title="Prototype control: shows how terminology changes with the business type"><span class="tb-label">Demo business type</span>
               <select class="tb-select" data-btype aria-label="Demo business type">${Object.entries(PP.businessTypes).map(([k, v]) => `<option value="${k}" ${s.businessType === k ? 'selected' : ''}>${esc(v.label)}</option>`).join('')}</select></div>
             <div class="tb-group hide-sm" ${isAdmin ? '' : 'hidden style="display:none"'} title="Prototype control: see the app as another role"><span class="tb-label">View as</span>
@@ -135,7 +138,7 @@
     PP.$('[data-viewas]').addEventListener('change', (e) => {
       PP.db.session.userId = e.target.value; PP.db.session.branchId = 'ALL'; PP.save(); renderShell();
       const route = PP.match(PP.currentPath());
-      if (route && route.route.perm && !PP.can(route.route.perm)) location.hash = '#/dashboard'; else { setActiveNav(); PP.render(); }
+      if (route && route.route.perm && !PP.can(route.route.perm)) location.hash = PP.homeHash(); else { setActiveNav(); PP.render(); }
       PP.ui.toast(`Now viewing as ${esc(PP.currentUser().name)}. Menus and pages follow this role’s permissions.`, 'info');
     });
     PP.$('[data-bell]').addEventListener('click', (e) => {
@@ -178,7 +181,7 @@
     PP.applyBranding();
     renderShell();
     window.addEventListener('hashchange', PP.render);
-    if (!location.hash) location.replace('#/dashboard');
+    if (!location.hash || (location.hash === '#/dashboard' && !PP.can('dashboard.view'))) location.replace(PP.homeHash());
     PP.render();
     // Pick up changes made on the public booking page in another tab.
     let syncTimer = null;

@@ -51,7 +51,7 @@
     /** Activation of an onboarded customer: domain verified + deployment registered (simulated). */
     activate(c) {
       return new Promise((resolve) => {
-        if (!PP.can('customers.lifecycle') && !PP.can('onboarding.run')) { PP.ui.toast('Your role cannot activate customers.', 'error'); resolve(false); return; }
+        if (!PP.can('customers.lifecycle')) { PP.ui.toast('Your role cannot activate customers. A SaaS Admin, License Manager or Super Admin activates them.', 'error'); resolve(false); return; }
         const dom = SA.primaryDomain(c.id); const lic = SA.licenceOf(c.id); const set = SA.latestSet(c.id);
         const checks = [
           { ok: !!dom && dom.status === 'Verified', label: 'Domain verified (DNS TXT challenge)', hint: dom ? `${esc(dom.host)} · ${esc(dom.status)}` : 'No domain', link: '#/domains' },
@@ -81,7 +81,7 @@
     },
   };
   function lifecycleButtons(c) {
-    const st = c.status; const out = [];
+    const st = c.status; const out = []; if (!PP.can('customers.lifecycle')) return '';
     if (st === 'Onboarding') out.push(`<button class="btn btn-primary" data-life="activate">${PP.icon('zap')} Activate</button>`);
     if (st === 'Active') out.push(`<button class="btn btn-danger" data-life="suspend">${PP.icon('lock')} Suspend</button>`);
     if (st === 'Suspended') out.push(`<button class="btn btn-primary" data-life="reactivate">${PP.icon('refresh')} Reactivate</button>`);
@@ -106,29 +106,29 @@
       const outstanding = PP.sum(PP.db.vendorInvoices || [], (v) => SA.invoiceTotals(v).due);
       el.innerHTML = PP.ui.pageHead({
         title: 'Control plane overview', subtitle: `${cs.length} customers · ${PP.db.deployments.filter((d) => d.version).length} live deployments on customer-owned infrastructure`,
-        actions: `${PP.can('onboarding.run') ? `<a class="btn btn-primary" href="#/onboarding">${PP.icon('plus')} Onboard a customer</a>` : ''}<a class="btn" href="#/fleet">${PP.icon('activity')} Fleet</a>`,
+        actions: `${PP.can('onboarding.run') ? `<a class="btn btn-primary" href="#/onboarding">${PP.icon('plus')} Onboard a customer</a>` : ''}${PP.can('fleet.view') ? `<a class="btn" href="#/fleet">${PP.icon('activity')} Fleet</a>` : ''}`,
       }) + `
         <div class="sa-states">${states.map(([s, h]) => { const n = s === 'Trial' ? trials : counts[s] || 0; return `<a class="sa-state ${STATE_TONES[s]}" href="${s === 'Trial' ? '#/demo/sandboxes' : `#/customers?state=${encodeURIComponent(s)}`}"><div class="l">${esc(s)}</div><div class="n">${n}</div><div class="h">${esc(h)}</div></a>`; }).join('')}</div>
         <div class="grid grid-4 mt-4">
-          ${PP.ui.kpi({ label: 'Monthly recurring revenue', value: PP.fmt.money(SA.mrr()), hint: 'Fictional · Active + Grace customers', icon: 'banknote', tone: 'positive' })}
-          ${PP.ui.kpi({ label: 'Outstanding vendor invoices', value: PP.fmt.money(outstanding), hint: `<a href="#/billing">Open vendor billing</a>`, icon: 'receipt', tone: outstanding ? 'warning' : 'positive' })}
-          ${PP.ui.kpi({ label: 'Open support tickets', value: openTickets, hint: '<a href="#/support">Ticket inbox</a>', icon: 'mail', tone: 'info' })}
-          ${PP.ui.kpi({ label: 'New demo leads', value: leads.length, hint: '<a href="#/demo">Sign-up leads</a>', icon: 'zap', tone: 'lavender' })}
+          ${!PP.can(['reports.view', 'billing.manage']) ? '' : PP.ui.kpi({ label: 'Monthly recurring revenue', value: PP.fmt.money(SA.mrr()), hint: 'Fictional · Active + Grace customers', icon: 'banknote', tone: 'positive' })}
+          ${!PP.can('billing.manage') ? '' : PP.ui.kpi({ label: 'Outstanding vendor invoices', value: PP.fmt.money(outstanding), hint: `<a href="#/billing">Open vendor billing</a>`, icon: 'receipt', tone: outstanding ? 'warning' : 'positive' })}
+          ${!PP.can('support.manage') ? '' : PP.ui.kpi({ label: 'Open support tickets', value: openTickets, hint: '<a href="#/support">Ticket inbox</a>', icon: 'mail', tone: 'info' })}
+          ${!PP.can('demo.manage') ? '' : PP.ui.kpi({ label: 'New demo leads', value: leads.length, hint: '<a href="#/demo">Sign-up leads</a>', icon: 'zap', tone: 'lavender' })}
         </div>
         <div class="grid dash-row mt-4">
-          ${PP.ui.card({ title: 'Licences expiring soon (≤ 30 days) and in grace', actions: '<a class="btn btn-sm btn-ghost" href="#/licences">All licences</a>', flush: true, body: expiring.length ? `<div class="table-wrap"><table class="table"><thead><tr><th>Customer</th><th>Plan</th><th>Ends</th><th>State</th></tr></thead><tbody>${expiring.map(({ c, lic }) => { const d = SA.daysLeft(lic.end); return `<tr><td>${SA.customerLink(c.id)}<span class="sub">${esc(c.city)}</span></td><td>${esc(SA.planName(lic.planId))}</td><td class="nowrap">${PP.fmt.date(lic.end)}<span class="sub">${d >= 0 ? `${d} days left` : `ended ${-d} days ago`}</span></td><td>${SA.badge(SA.licenceState(lic))}</td></tr>`; }).join('')}</tbody></table></div>` : PP.ui.empty({ icon: 'shield', title: 'No licences expiring in the next 30 days' }) })}
-          ${PP.ui.card({ title: 'Deployments needing attention', actions: '<a class="btn btn-sm btn-ghost" href="#/fleet">Fleet monitoring</a>', flush: true, body: attention.length ? `<ul class="list sa-list-compact">${attention.map(({ c, d, issues }) => `<li>${PP.icon('alert', 'style="width:18px;color:var(--pp-warning-fg);flex:none"')}<div class="grow"><a href="#/customers/${c.id}?tab=deployment"><b>${esc(c.name)}</b></a><span class="sub small muted" style="display:block">${esc(issues.join(' · '))} · v${esc(d.version || '—')}</span></div>${SA.badge(d.health)}</li>`).join('')}</ul>` : PP.ui.empty({ icon: 'checkCircle', title: 'Every deployment is healthy' }) })}
+          ${!PP.can(SA.PAGE_PERMS.licences) ? '' : PP.ui.card({ title: 'Licences expiring soon (≤ 30 days) and in grace', actions: '<a class="btn btn-sm btn-ghost" href="#/licences">All licences</a>', flush: true, body: expiring.length ? `<div class="table-wrap"><table class="table"><thead><tr><th>Customer</th><th>Plan</th><th>Ends</th><th>State</th></tr></thead><tbody>${expiring.map(({ c, lic }) => { const d = SA.daysLeft(lic.end); return `<tr><td>${SA.customerLink(c.id)}<span class="sub">${esc(c.city)}</span></td><td>${esc(SA.planName(lic.planId))}</td><td class="nowrap">${PP.fmt.date(lic.end)}<span class="sub">${d >= 0 ? `${d} days left` : `ended ${-d} days ago`}</span></td><td>${SA.badge(SA.licenceState(lic))}</td></tr>`; }).join('')}</tbody></table></div>` : PP.ui.empty({ icon: 'shield', title: 'No licences expiring in the next 30 days' }) })}
+          ${!PP.can('fleet.view') ? '' : PP.ui.card({ title: 'Deployments needing attention', actions: '<a class="btn btn-sm btn-ghost" href="#/fleet">Fleet monitoring</a>', flush: true, body: attention.length ? `<ul class="list sa-list-compact">${attention.map(({ c, d, issues }) => `<li>${PP.icon('alert', 'style="width:18px;color:var(--pp-warning-fg);flex:none"')}<div class="grow"><a href="#/customers/${c.id}?tab=deployment"><b>${esc(c.name)}</b></a><span class="sub small muted" style="display:block">${esc(issues.join(' · '))} · v${esc(d.version || '—')}</span></div>${SA.badge(d.health)}</li>`).join('')}</ul>` : PP.ui.empty({ icon: 'checkCircle', title: 'Every deployment is healthy' }) })}
         </div>
         <div class="grid dash-row-3 mt-4">
-          ${PP.ui.card({ title: 'Monthly recurring revenue (fictional)', body: '<div data-mrr></div>' })}
-          ${PP.ui.card({ title: 'New demo leads', actions: '<a class="btn btn-sm btn-ghost" href="#/demo">All leads</a>', flush: true, body: leads.length ? `<ul class="list sa-list-compact">${leads.slice(0, 5).map((l) => `<li><span class="avatar">${esc(PP.initials(l.name))}</span><div class="grow"><b>${esc(l.organisation)}</b><span class="sub small muted" style="display:block">${esc(l.name)} · ${esc(SA.btLabel(l.businessType))} · ${SA.ago(l.createdAt)}</span></div>${PP.can('onboarding.run') ? `<a class="btn btn-sm" href="#/onboarding?lead=${l.id}">Convert</a>` : ''}</li>`).join('')}</ul>` : PP.ui.empty({ icon: 'zap', title: 'No new leads' }) })}
+          ${!PP.can(['reports.view', 'billing.manage']) ? '' : PP.ui.card({ title: 'Monthly recurring revenue (fictional)', body: '<div data-mrr></div>' })}
+          ${!PP.can('demo.manage') ? '' : PP.ui.card({ title: 'New demo leads', actions: '<a class="btn btn-sm btn-ghost" href="#/demo">All leads</a>', flush: true, body: leads.length ? `<ul class="list sa-list-compact">${leads.slice(0, 5).map((l) => `<li><span class="avatar">${esc(PP.initials(l.name))}</span><div class="grow"><b>${esc(l.organisation)}</b><span class="sub small muted" style="display:block">${esc(l.name)} · ${esc(SA.btLabel(l.businessType))} · ${SA.ago(l.createdAt)}</span></div>${PP.can('onboarding.run') ? `<a class="btn btn-sm" href="#/onboarding?lead=${l.id}">Convert</a>` : ''}</li>`).join('')}</ul>` : PP.ui.empty({ icon: 'zap', title: 'No new leads' }) })}
           ${PP.ui.card({ title: 'Customers by business type', body: `<div class="stack">${PP.db.businessTypes.map((b) => { const n = cs.filter((c) => c.businessType === b.id).length; return n ? `<div><div class="row between small"><span>${esc(b.label)}</span><b class="mono">${n}</b></div><div class="sa-usage-bar mt-2"><span style="width:${Math.round((n / cs.length) * 100)}%"></span></div></div>` : ''; }).join('')}</div>` })}
         </div>
         <div class="mt-4">${SA.noPatientData()}</div>`;
       // MRR history: customers counted from their activation month (fictional, from the seed)
       const months = []; for (let k = 5; k >= 0; k--) { const d = PP.parseISO(PP.monthStart(PP.today())); d.setMonth(d.getMonth() - k); months.push(PP.isoOf(d).slice(0, 7)); }
       const vals = months.map((m) => PP.round2(PP.sum(cs.filter((c) => c.activatedAt && c.activatedAt.slice(0, 7) <= m && !(c.status === 'Suspended' && m === months[5])), mrrOf)));
-      PP.chart.bars(PP.$('[data-mrr]', el), { labels: months.map((m) => PP.fmt.month(m).slice(0, 3)), groups: [{ name: 'MRR (BDT)', values: vals, color: '#4f46e5' }], format: (v) => (v >= 1000 ? `${Math.round(v / 1000)}k` : Math.round(v)), height: 200 });
+      if (PP.$('[data-mrr]', el)) PP.chart.bars(PP.$('[data-mrr]', el), { labels: months.map((m) => PP.fmt.month(m).slice(0, 3)), groups: [{ name: 'MRR (BDT)', values: vals, color: '#4f46e5' }], format: (v) => (v >= 1000 ? `${Math.round(v / 1000)}k` : Math.round(v)), height: 200 });
     },
   });
 
@@ -154,11 +154,11 @@
           { key: 'bt', label: 'Business type', sort: (c) => c.businessType, render: (c) => `${esc(SA.btLabel(c.businessType))}<span class="sub">${esc(SA.term(c, 'professionals'))}</span>`, exportValue: (c) => SA.btLabel(c.businessType) },
           { key: 'plan', label: 'Plan', sort: (c) => SA.planName(c.planId), render: (c) => `${esc(SA.planName(c.planId))}<span class="sub">${esc(c.billingCycle)}</span>`, exportValue: (c) => SA.planName(c.planId) },
           { key: 'state', label: 'State', sort: (c) => SA.state(c), render: (c) => SA.badge(SA.state(c)), exportValue: (c) => SA.state(c) },
-          { key: 'lic', label: 'Licence ends', sort: (c) => licEnd(c) || '', render: (c) => { const e = licEnd(c); if (!e) return '—'; const d = SA.daysLeft(e); return `${PP.fmt.date(e)}<span class="sub ${d < 0 ? 'sa-over' : ''}">${d >= 0 ? `${d} days left` : `ended ${-d} days ago`}</span>`; }, exportValue: (c) => licEnd(c) || '' },
+          !PP.can(SA.PAGE_PERMS.licences) ? null : { key: 'lic', label: 'Licence ends', sort: (c) => licEnd(c) || '', render: (c) => { const e = licEnd(c); if (!e) return '—'; const d = SA.daysLeft(e); return `${PP.fmt.date(e)}<span class="sub ${d < 0 ? 'sa-over' : ''}">${d >= 0 ? `${d} days left` : `ended ${-d} days ago`}</span>`; }, exportValue: (c) => licEnd(c) || '' },
           { key: 'domain', label: 'Domain', render: (c) => { const d = SA.primaryDomain(c.id); return d ? `${esc(d.host)}<span class="sub">${esc(d.status)}</span>` : '—'; }, exportValue: (c) => (SA.primaryDomain(c.id) || {}).host || '' },
           { key: 'ver', label: 'Version', sort: (c) => (SA.deployment(c.id) || {}).version || '', render: (c) => { const d = SA.deployment(c.id); return d && d.version ? `<span class="mono">${esc(d.version)}</span><span class="sub">${esc(d.updateStatus)}</span>` : '<span class="muted">Not installed</span>'; }, exportValue: (c) => (SA.deployment(c.id) || {}).version || '' },
           { key: 'patients', label: 'Patients (count)', align: 'right', sort: (c) => ((SA.deployment(c.id) || {}).usage || {}).patients || 0, render: (c) => PP.fmt.num(((SA.deployment(c.id) || {}).usage || {}).patients || 0) },
-        ],
+        ].filter(Boolean),
         rowClass: (c) => (['Read-only', 'Suspended'].includes(SA.state(c)) ? 'sa-err-row' : SA.state(c) === 'Grace' ? 'sa-warn-row' : ''),
         onRowClick: (c) => { location.hash = `#/customers/${c.id}`; },
         empty: { icon: 'building', title: 'No customers yet', text: 'Onboard the first customer with the 14-step wizard.', action: '<a class="btn btn-primary" href="#/onboarding">Onboard a customer</a>' },
@@ -167,12 +167,15 @@
   });
 
   /* ------------------------------------------------------------------ customer detail */
-  const TABS = [['profile', 'Profile'], ['configuration', 'Configuration'], ['entitlements', 'Entitlements'], ['licence', 'Licence'], ['domain', 'Domain'], ['branding', 'Branding'], ['deployment', 'Deployment'], ['billing', 'Billing'], ['history', 'History']];
+  /* Tabs follow the role: customers.view alone shows the profile and configuration (read-only). [id, label, permission(s)] */
+  const ALL_TABS = [['profile', 'Profile'], ['configuration', 'Configuration'], ['entitlements', 'Entitlements', SA.PAGE_PERMS.entitlements], ['licence', 'Licence', SA.PAGE_PERMS.licences], ['domain', 'Domain', 'domains.manage'], ['branding', 'Branding', 'branding.manage'], ['deployment', 'Deployment', 'fleet.view'], ['billing', 'Billing', 'billing.manage'], ['history', 'History', SA.PAGE_PERMS.audit]];
+  const tabsFor = () => ALL_TABS.filter((t) => !t[2] || PP.can(t[2]));
   PP.route('/customers/:id', {
     title: (p) => { const c = SA.customer(p.id); return c ? c.name : 'Customer'; }, perm: 'customers.view',
     render({ el, params, query }) {
       const c = SA.customer(params.id);
       if (!c) { el.innerHTML = `<div class="card">${PP.ui.empty({ icon: 'search', title: 'Customer not found', text: `No customer with ID <code>${esc(params.id)}</code>.`, action: '<a class="btn" href="#/customers">Back to customers</a>' })}</div>`; return; }
+      const TABS = tabsFor();
       let tab = TABS.some(([k]) => k === query.tab) ? query.tab : 'profile';
       const draw = () => {
         const st = SA.state(c); const dom = SA.primaryDomain(c.id); const set = SA.latestSet(c.id);
@@ -320,7 +323,7 @@
   }
 
   function historyTab(p, c) {
-    const rows = () => PP.db.audit.filter((a) => a.target === c.id || String(a.detail).includes(c.id) || (SA.domainsOf(c.id).some((d) => d.host === a.target)) || (SA.setsOf(c.id).some((s) => s.id === a.target)));
+    const rows = () => PP.db.audit.filter((a) => SA.auditVisible(a)).filter((a) => a.target === c.id || String(a.detail).includes(c.id) || (SA.domainsOf(c.id).some((d) => d.host === a.target)) || (SA.setsOf(c.id).some((s) => s.id === a.target)));
     const sets = SA.setsOf(c.id);
     p.innerHTML = `<div class="sa-split"><div><h3>Change history</h3><p class="small muted">Every super admin change: who, when, what and why. Append-only.</p><div data-h></div></div>
       <div><h3>Entitlement versions</h3><ul class="timeline mt-3">${sets.map((s) => `<li><div class="tl-date">v${s.version}<br><span class="small">${PP.fmt.dateShort(s.issuedAt.slice(0, 10))}</span></div><div class="tl-body"><b>${esc(s.reason || '—')}</b>${s.kind === 'rollback' ? ` ${SA.badge('Rollback')}` : ''}<div class="small muted">${esc(s.by)} · ${s.features.length} features · ${esc(SA.shortSig(s.signature))}</div></div></li>`).join('') || '<li>No versions</li>'}</ul>

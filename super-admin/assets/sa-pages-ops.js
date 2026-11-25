@@ -165,7 +165,7 @@
     });
     PP.$('[data-add]', el).addEventListener('click', () => OPS.addDomainModal('', () => { if (alive(el)) renderDomains(el); }));
   }
-  PP.route('/domains', { title: 'Domains', perm: 'customers.view', render: ({ el }) => renderDomains(el) });
+  PP.route('/domains', { title: 'Domains', perm: 'domains.manage', render: ({ el }) => renderDomains(el) });
 
   SA.panels.domain = function (el, c) {
     const draw = () => {
@@ -226,7 +226,7 @@
       onRowClick: (c) => { location.hash = `#/branding/${c.id}`; },
     });
   }
-  PP.route('/branding', { title: 'Branding', perm: 'customers.view', render: ({ el }) => renderBrandingList(el) });
+  PP.route('/branding', { title: 'Branding', perm: 'branding.manage', render: ({ el }) => renderBrandingList(el) });
 
   function readImage(file, maxKb) {
     return new Promise((resolve, reject) => {
@@ -238,7 +238,7 @@
   }
 
   PP.route('/branding/:id', {
-    title: (p) => `Branding · ${SA.customerName(p.id)}`, perm: 'customers.view',
+    title: (p) => `Branding · ${SA.customerName(p.id)}`, perm: 'branding.manage',
     render({ params, el }) {
       const c = SA.customer(params.id);
       if (!c) { el.innerHTML = PP.ui.card({ body: PP.ui.empty({ icon: 'alert', title: 'Customer not found', action: '<a class="btn" href="#/branding">Back to branding</a>' }) }); return; }
@@ -522,7 +522,7 @@
         buttons: [{ label: 'Cancel', kind: 'ghost' }, { label: 'Send heartbeat', kind: 'primary', onClick: async ({ body: b }) => { const f = PP.$('form', b); if (!PP.form.validate(f)) return false; await PP.sleep(500); OPS.simulateHeartbeat(PP.form.read(f).customerId); redraw('log'); } }] });
     });
   }
-  PP.route('/licences', { title: 'Licences', perm: 'customers.view', render: ({ el, query }) => renderLicences(el, query.tab) });
+  PP.route('/licences', { title: 'Licences', perm: SA.PAGE_PERMS.licences, render: ({ el, query }) => renderLicences(el, query.tab) });
 
   SA.panels.licence = function (el, c) {
     const draw = () => {
@@ -713,7 +713,7 @@
     PP.$('[data-new]', el).addEventListener('click', () => OPS.newReleaseModal(redraw));
     PP.$$('[data-roll]', el).forEach((b) => b.addEventListener('click', () => OPS.rollout(b.dataset.roll, redraw)));
   }
-  PP.route('/releases', { title: 'Releases & updates', perm: 'customers.view', render: ({ el }) => renderReleases(el) });
+  PP.route('/releases', { title: 'Releases & updates', perm: 'releases.publish', render: ({ el }) => renderReleases(el) });
 
   /* ================================================================== FLEET */
   const H24 = 24 * 3600000;

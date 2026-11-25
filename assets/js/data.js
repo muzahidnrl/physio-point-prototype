@@ -3,12 +3,6 @@
    Dates are generated relative to "today" so the calendar always has data. Deterministic (seeded). */
 (function () {
   'use strict';
-  /* Default permissions of the built-in roles (D-032): each role gets only what its job needs. */
-  const ROLE_PERMS = {
-    frontdesk: ['dashboard.view', 'appointments.view', 'appointments.view_all', 'appointments.manage', 'requests.review', 'patients.view', 'patients.view_all', 'patients.edit', 'billing.view', 'billing.manage', 'queue.manage', 'packages.manage', 'referrals.manage', 'feedback.view', 'lab.manage', 'professionals.view', 'support.use'],
-    professional: ['dashboard.view', 'appointments.view', 'patients.view', 'clinical.view', 'clinical.write', 'prescriptions.issue', 'templates.manage', 'exercises.manage', 'commissions.view_own'],
-    accountant: ['dashboard.view', 'billing.view', 'billing.manage', 'billing.refund', 'finance.manage', 'finance.close', 'commissions.manage', 'commissions.payout', 'reports.view', 'inventory.manage', 'payroll.manage', 'support.use'],
-  };
   const PP = window.PP;
 
   PP.seedData = function () {
@@ -78,12 +72,7 @@
     });
 
     /* ---------------- roles and users ---------------- */
-    db.roles = [
-      { id: 'admin', name: 'Admin (Owner)', system: true, permissions: ['*'] },
-      { id: 'frontdesk', name: 'Front Desk', system: true, permissions: ROLE_PERMS.frontdesk.slice() },
-      { id: 'professional', name: 'Professional', system: true, permissions: ROLE_PERMS.professional.slice() },
-      { id: 'accountant', name: 'Accountant', system: true, permissions: ROLE_PERMS.accountant.slice() },
-    ];
+    db.roles = PP.RBAC.defaultRoles(); // 22 built-in customer roles (D-036); custom roles can be added
 
     /* ---------------- professionals ---------------- */
     const week = (start, end, bs, be, thuEnd) => {
@@ -376,7 +365,34 @@
   // D-033: medicine is allowed for everyone by default; the admin can switch it off per type or per person.
   PP.registerSeed('rx-med-default', (db) => { (db.professionalTypes || []).forEach((t) => { t.canPrescribeMedication = true; }); });
   // D-032: bring existing browser data onto the tightened role matrix (built-in roles only; custom roles are left alone).
-  PP.registerSeed('roles-v2', (db) => {
-    db.roles.forEach((r) => { if (r.system && ROLE_PERMS[r.id]) r.permissions = ROLE_PERMS[r.id].slice(); });
+  // D-036: two-level RBAC. Built-in roles are refreshed (custom roles stay), and demo users are added so every role can be tried.
+  PP.registerSeed('roles-v3', (db) => {
+    const defs = PP.RBAC.defaultRoles();
+    const custom = (db.roles || []).filter((r) => !r.system && !defs.some((d) => d.id === r.id));
+    db.roles = defs.concat(custom);
+    const num = (id) => Number(String(id).split('-')[1]) || 0;
+    const next = () => 'USR-' + (db.users.reduce((m, u) => Math.max(m, num(u.id)), 0) + 1);
+    const byPro = (pid) => db.users.find((u) => u.professionalId === pid);
+    const setRole = (u, role, extra) => { if (!u) return; u.role = role; if (extra) u.roles = extra; };
+    setRole(byPro('PRO-1'), 'senior_professional');
+    setRole(byPro('PRO-3'), 'visiting_professional');
+    setRole(byPro('PRO-4'), 'consultant', ['clinical_manager']); // multi-role example
+    setRole(byPro('PRO-5'), 'clinical_assistant');
+    const nadia = db.users.find((u) => u.id === 'USR-6'); if (nadia) nadia.role = 'receptionist';
+    const add = (name, email, role, branchIds, extra) => {
+      if (db.users.some((u) => u.email === email)) return;
+      db.users.push(Object.assign({ id: next(), name, email, mobile: '0171' + String(1000000 + db.users.length * 7919).slice(-7), role, branchIds, status: 'Active', mfa: ['org_admin', 'finance_manager'].includes(role), lastLogin: null, professionalId: null }, extra || {}));
+    };
+    add('Rumana Karim', 'orgadmin@clinic.example', 'org_admin', ['BR-1', 'BR-2']);
+    add('Faisal Ahmed', 'manager@clinic.example', 'org_manager', ['BR-1', 'BR-2']);
+    add('Jannatul Ferdous', 'finance@clinic.example', 'finance_manager', ['BR-1', 'BR-2']);
+    add('Mahbub Alam', 'hr@clinic.example', 'hr_manager', ['BR-1', 'BR-2']);
+    add('Sohel Rana', 'khalishpur.manager@clinic.example', 'branch_manager', ['BR-2']);
+    add('Tania Akter', 'khalishpur.admin@clinic.example', 'branch_admin', ['BR-2']);
+    add('Mitu Das', 'reception@clinic.example', 'receptionist', ['BR-1']);
+    add('Rakib Hasan', 'appointments@clinic.example', 'appointment_manager', ['BR-1', 'BR-2']);
+    add('Liton Mia', 'cashier@clinic.example', 'cashier', ['BR-1']);
+    add('Babul Hossain', 'store@clinic.example', 'inventory_manager', ['BR-1', 'BR-2']);
   });
+
 })();

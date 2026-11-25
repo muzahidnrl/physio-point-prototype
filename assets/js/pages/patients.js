@@ -324,6 +324,61 @@
   /* ------------------------------------------------------------- tabs */
   const kv = (pairs) => `<dl class="kv">${pairs.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${v == null || v === '' ? '<span class="muted">—</span>' : v}</dd>`).join('')}</dl>`;
 
+  /* Guardian / caregiver access (D-036): explicit, scoped, time-limited and audited. */
+  const G_SCOPES = [['appointments', 'Appointments'], ['billing', 'Bills & payments'], ['prescriptions', 'Prescriptions'], ['exercises', 'Exercises'], ['reports', 'Lab reports']];
+  const grantActive = (g) => g.status === 'Active' && (!g.until || g.until >= PP.today());
+  function guardianCardHtml(p) {
+    const list = p.guardians || []; const can = PP.can('patients.update');
+    return PP.ui.card({
+      title: 'Guardian / caregiver access', flush: true,
+      actions: can ? `<button class="btn btn-sm btn-primary" data-g-add>${PP.icon('shield')} Authorise guardian</button>` : '',
+      body: `<div class="card-body small muted">Family links do <b>not</b> give access to records. A guardian or caregiver can open this patient’s records in the patient app only with an explicit authorisation: chosen sections, an end date and the consent basis. Every grant, change and use is audited.</div>`
+        + (list.length ? `<div class="table-wrap"><table class="table"><thead><tr><th>Guardian</th><th>Relation</th><th>Sections</th><th>Valid until</th><th>Basis</th><th>Status</th><th></th></tr></thead><tbody>${list.map((g) => `<tr>
+            <td><b>${esc(g.name)}</b><span class="sub">${esc(g.mobile || '')}${g.patientId ? ' · ' + esc(g.patientId) : ''}</span></td><td>${esc(g.relation || '')}</td>
+            <td>${(g.scopes || []).map((x) => `<span class="badge neutral">${esc((G_SCOPES.find((y) => y[0] === x) || [x, x])[1])}</span>`).join(' ')}</td>
+            <td>${g.until ? esc(PP.fmt.date(g.until)) : '—'}</td><td class="small">${esc(g.basis || '')}${g.consentRef ? `<span class="sub">${esc(g.consentRef)}</span>` : ''}</td>
+            <td>${grantActive(g) ? PP.ui.badge('Active') : PP.ui.badge(g.status === 'Revoked' ? 'Revoked' : 'Expired', 'neutral')}</td>
+            <td>${can && g.status === 'Active' ? `<button class="btn btn-sm btn-danger" data-g-revoke="${esc(g.id)}">Revoke</button>` : ''}</td></tr>`).join('')}</tbody></table></div>`
+          : `<div class="card-body">${PP.ui.empty({ icon: 'shield', title: 'No guardian access', text: 'Nobody else can open this patient’s records.' })}</div>`),
+    });
+  }
+  function bindGuardians(panel, p, el) {
+    const add = PP.$('[data-g-add]', panel);
+    if (add) add.addEventListener('click', () => {
+      const fam = familyOf(p); const until = PP.addDays(PP.today(), 180);
+      PP.ui.modal({
+        title: `Authorise a guardian for ${esc(p.name)}`, size: 'lg',
+        body: `<form class="form-grid" novalidate>
+          ${PP.form.field({ name: 'patientId', label: 'Guardian is a patient here (optional)', type: 'select', placeholder: 'No — enter name and mobile', options: fam.map((x) => [x.id, `${x.name} · ${x.id}`]) })}
+          ${PP.form.field({ name: 'relation', label: 'Relation', type: 'select', required: true, options: ['Parent', 'Legal guardian', 'Spouse', 'Son / daughter (caregiver)', 'Other caregiver'] })}
+          ${PP.form.field({ name: 'name', label: 'Guardian name', placeholder: 'Needed if not a patient here' })}
+          ${PP.form.field({ name: 'mobile', label: 'Guardian mobile', rule: 'mobile', placeholder: '01XXXXXXXXX' })}
+          <div class="field full" data-field="scopes"><span class="label">Sections they may open<span class="req">*</span></span><div class="row">${G_SCOPES.map(([v, l]) => `<label class="check"><input type="checkbox" name="sc_${v}" ${['appointments', 'billing'].includes(v) ? 'checked' : ''}> ${esc(l)}</label>`).join('')}</div><div class="error">Choose at least one section.</div></div>
+          ${PP.form.field({ name: 'until', label: 'Valid until', type: 'date', required: true, value: until, min: PP.today() })}
+          ${PP.form.field({ name: 'basis', label: 'Basis of authorisation', type: 'select', required: true, options: ['Written consent of the patient', 'Parent / legal guardian of a minor', 'Court order or power of attorney', 'Patient lacks capacity (documented)'] })}
+          ${PP.form.field({ name: 'consentRef', label: 'Consent document reference', required: true, placeholder: 'e.g. Consent form CF-2291', full: true })}
+        </form>`,
+        buttons: [{ label: 'Cancel', kind: 'ghost' }, { label: 'Authorise', kind: 'primary', onClick: ({ body }) => {
+          const form = PP.$('form', body); if (!PP.form.validate(form)) return false; const d = PP.form.read(form);
+          const scopes = G_SCOPES.map((x) => x[0]).filter((x) => d['sc_' + x]);
+          if (!scopes.length) { PP.form.setError(form, 'scopes', 'Choose at least one section.'); return false; }
+          const gp = d.patientId ? PP.find.patient(d.patientId) : null;
+          if (!gp && (!d.name || !d.mobile)) { PP.form.setError(form, d.name ? 'mobile' : 'name', 'Enter the guardian’s name and mobile, or choose a patient.'); return false; }
+          const g = { id: PP.nextId('GRD', 3), name: gp ? gp.name : d.name, mobile: gp ? gp.mobile : d.mobile, patientId: gp ? gp.id : null, relation: d.relation, scopes, until: d.until, basis: d.basis, consentRef: d.consentRef, authorizedBy: (PP.currentUser() || {}).id, authorizedAt: PP.nowStamp(), status: 'Active' };
+          (p.guardians = p.guardians || []).push(g);
+          PP.audit('Guardian access granted', p.id, `${g.name} · ${g.relation} · ${scopes.join(', ')} · until ${g.until} · ${g.consentRef}`); PP.save();
+          PP.ui.toast(`Guardian access granted to ${esc(g.name)}`); PP.render();
+        } }],
+      });
+    });
+    PP.$$('[data-g-revoke]', panel).forEach((b) => b.addEventListener('click', async () => {
+      const g = (p.guardians || []).find((x) => x.id === b.dataset.gRevoke);
+      const res = await PP.ui.confirm({ title: `Revoke access for ${esc(g.name)}?`, message: 'They can no longer open this patient’s records in the app.', confirmLabel: 'Revoke', danger: true, reasonLabel: 'Reason', reasonRequired: true });
+      if (!res) return;
+      g.status = 'Revoked'; g.revokedAt = PP.nowStamp(); g.revokedBy = (PP.currentUser() || {}).id; g.revokeReason = res.reason || '';
+      PP.audit('Guardian access revoked', p.id, `${g.name}${res.reason ? ' · ' + res.reason : ''}`); PP.save(); PP.ui.toast('Guardian access revoked', 'info'); PP.render();
+    }));
+  }
   const TABS = {
     lab(panel, p) {
       const READY = ['Result ready', 'Delivered'];
@@ -479,8 +534,9 @@
         body: fam.length ? `<ul class="list">${fam.map((f) => `<li><span class="avatar">${esc(PP.initials(f.name))}</span><div class="grow"><a href="#/patients/${esc(f.id)}"><b>${esc(f.name)}</b></a> <span class="mono muted small">${esc(f.id)}</span><div class="small muted">${esc(f.gender || '—')} · ${esc(ageOf(f.dob))} · ${esc(f.mobile)}${digits(f.mobile) === digits(p.mobile) ? ' · same mobile' : ''}</div></div>${PP.can('patients.edit') ? `<button class="btn btn-ghost btn-sm" data-unlink="${esc(f.id)}">Unlink</button>` : ''}</li>`).join('')}</ul>
           <div class="card-foot small muted">Family group <span class="mono">${esc(p.familyGroup)}</span>. Each member keeps their own patient ID and clinical record.</div>`
           : PP.ui.empty({ icon: 'users', title: 'No family links', text: 'Link relatives who share a mobile number or guardian, so the front desk can find them together.' }),
-      });
+      }) + guardianCardHtml(p);
       const b = PP.$('[data-link]', panel); if (b) b.addEventListener('click', () => openFamilyLink(p, el));
+      bindGuardians(panel, p, el);
       PP.$$('[data-unlink]', panel).forEach((x) => x.addEventListener('click', async () => {
         const f = PP.find.patient(x.dataset.unlink);
         const ok = await PP.ui.confirm({ title: 'Remove family link?', message: `${esc(f.name)} will no longer be linked to this family. Clinical records are not affected.`, confirmLabel: 'Unlink' });

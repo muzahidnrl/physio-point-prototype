@@ -296,15 +296,56 @@
   };
 
   /* -------------------------------------------------------------------------- misc */
+  /* -------------------------------------------------------------------------- vendor roles and permissions (D-036, answers PD-033) */
   SA.PERMISSIONS = [
-    ['dashboard.view', 'View dashboard'], ['customers.view', 'View customers'], ['customers.manage', 'Edit customer profile and configuration'],
-    ['customers.lifecycle', 'Activate, suspend, reactivate'], ['onboarding.run', 'Onboard new customers'], ['entitlements.manage', 'Change entitlements and limits'],
-    ['entitlements.global', 'Global feature switches'], ['plans.manage', 'Manage plans'], ['catalog.manage', 'Manage configuration catalogues'],
-    ['domains.manage', 'Manage domains'], ['branding.manage', 'Manage branding'], ['licences.manage', 'Issue, renew and revoke licences'],
-    ['releases.publish', 'Publish releases and roll out updates'], ['fleet.view', 'View fleet monitoring'], ['billing.manage', 'Vendor billing'],
-    ['support.manage', 'Support tickets and announcements'], ['support.remote', 'Request remote support sessions'], ['demo.manage', 'Demo leads and sandboxes'],
-    ['staff.manage', 'Manage vendor staff and roles'], ['audit.view', 'View vendor audit log'],
+    ['dashboard.view', 'View dashboard'], ['customers.view', 'View customers (profile only)'], ['customers.manage', 'Edit customer profile and configuration'],
+    ['customers.lifecycle', 'Activate, suspend (read-only), reactivate customers'], ['onboarding.run', 'Start onboarding of new customers'],
+    ['plans.view', 'View plans and prepare quotes'], ['plans.manage', 'Create and edit plans'],
+    ['entitlements.view', 'View customer entitlements (read-only)'], ['entitlements.manage', 'Change customer entitlements and limits'], ['entitlements.global', 'Global feature switches'],
+    ['catalog.manage', 'Manage configuration catalogues'], ['domains.manage', 'Manage domains'], ['branding.manage', 'Manage branding'],
+    ['licences.view', 'View licences (read-only)'], ['licences.manage', 'Issue, renew and revoke licences'],
+    ['releases.publish', 'Publish releases and roll out updates'], ['fleet.view', 'View fleet monitoring'],
+    ['billing.manage', 'Vendor invoices, payments and licence billing'], ['reports.view', 'Revenue and business reports'],
+    ['support.manage', 'Work support tickets (reply, status, assignee)'], ['announcements.manage', 'Write and publish announcements'],
+    ['support.remote', 'Request remote support sessions'], ['support.approve_remote', 'Approve and assign remote support sessions (never own requests)'],
+    ['demo.manage', 'Demo leads and sandboxes'], ['staff.manage', 'Manage vendor staff and roles'],
+    ['audit.view', 'View the full vendor audit log'], ['audit.view_support', 'View the audit log of support actions only'],
   ];
+  /** The 8 vendor roles (D-036). Used by the seed and by the one-time role migration in sa-data.js. */
+  SA.VENDOR_ROLES = [
+    { id: 'super_admin', name: 'Super Admin', description: 'Everything, including vendor staff and roles. The last active Super Admin cannot be removed.', permissions: ['*'] },
+    { id: 'saas_admin', name: 'SaaS Admin', description: 'Customers, onboarding, plans, entitlements, domains and branding, announcements, demo. No releases, no vendor billing.', permissions: ['dashboard.view', 'customers.view', 'customers.manage', 'customers.lifecycle', 'onboarding.run', 'plans.view', 'plans.manage', 'entitlements.view', 'entitlements.manage', 'domains.manage', 'branding.manage', 'announcements.manage', 'demo.manage'] },
+    { id: 'license_manager', name: 'License Manager', description: 'Licences and the licence lifecycle (renew, suspend, read-only); entitlements and customers read-only.', permissions: ['dashboard.view', 'customers.view', 'customers.lifecycle', 'licences.view', 'licences.manage', 'entitlements.view'] },
+    { id: 'support_manager', name: 'Support Manager', description: 'Tickets, announcements, remote support (approves and assigns sessions), fleet read, support audit.', permissions: ['dashboard.view', 'customers.view', 'support.manage', 'announcements.manage', 'support.remote', 'support.approve_remote', 'fleet.view', 'audit.view_support'] },
+    { id: 'technical_admin', name: 'Technical Admin', description: 'Releases and rollouts, fleet, global switches, catalogues, domains (technical); customers read-only.', permissions: ['dashboard.view', 'customers.view', 'releases.publish', 'fleet.view', 'entitlements.view', 'entitlements.global', 'catalog.manage', 'domains.manage', 'support.remote'] },
+    { id: 'finance_admin', name: 'Finance Admin', description: 'Vendor invoices, payments, licence billing and reports; customers read-only.', permissions: ['dashboard.view', 'customers.view', 'billing.manage', 'licences.view', 'reports.view'] },
+    { id: 'sales_manager', name: 'Sales Manager', description: 'Demo leads, starting onboarding, plans read-only and quotes; customers read-only.', permissions: ['dashboard.view', 'customers.view', 'demo.manage', 'onboarding.run', 'plans.view'] },
+    { id: 'support_agent', name: 'Support Agent', description: 'Tickets and remote-support requests (cannot approve own request); customers read-only. No billing, no licences.', permissions: ['dashboard.view', 'customers.view', 'support.manage', 'support.remote'] },
+  ];
+  /** Remote support rule shown in the UI: who may request, who may approve (never the requester). */
+  SA.REMOTE_RULE = { request: ['support_agent', 'support_manager', 'technical_admin', 'super_admin'], approve: ['support_manager', 'super_admin'] };
+  /* Page permissions: a menu item (and its route) is shown only when the role has one of these permissions (PP.can takes a list = any of).
+     Keep in step with the perm of each PP.route; the server would refuse the same calls in production. */
+  SA.PAGE_PERMS = {
+    plans: ['plans.view', 'plans.manage'], entitlements: ['entitlements.view', 'entitlements.manage', 'entitlements.global'],
+    licences: ['licences.view', 'licences.manage'], remote: ['support.remote', 'support.approve_remote'], audit: ['audit.view', 'audit.view_support'],
+  };
+  SA.REMOTE_REQUEST_HOURS = 24; // a request that is not approved and granted within 24 h lapses
+  SA.REMOTE_MAX_HOURS = 4;      // longest window a customer can grant
+  /* PP.can in the super admin also accepts a list (any of). '*' still grants everything. */
+  const baseCan = PP.can;
+  PP.can = function (perm) { if (Array.isArray(perm)) return perm.some((p) => baseCan(p)); return baseCan(perm); };
+  SA.roleOf = (u) => (u ? (PP.db.roles || []).find((r) => r.id === u.role) : null);
+  SA.roleName = (id) => ((PP.db.roles || []).find((r) => r.id === id) || {}).name || id;
+  SA.userCan = function (u, perm) { const r = SA.roleOf(u); return !!r && u.status === 'Active' && (r.permissions.includes('*') || r.permissions.includes(perm)); };
+  /** Audit categories, and which entries the current role may read (audit.view: all; audit.view_support: support actions only). */
+  SA.AUDIT_CATS = [
+    ['Licences', /licen/i], ['Entitlements', /entitle|feature|override|rollback|limit|plan/i], ['Billing', /invoice|payment|reminder/i],
+    ['Support', /ticket|announce|remote/i], ['Demo & trial', /sandbox|lead|trial|demo/i], ['Releases & fleet', /release|roll ?out|update|deploy/i],
+    ['Domains & branding', /domain|ssl|brand|dns/i], ['Staff & access', /staff|role|sign/i], ['Customers', /customer|suspend|reactivat|activat|onboard/i],
+  ];
+  SA.auditCat = (a) => (SA.AUDIT_CATS.find(([, re]) => re.test(a.action)) || ['Other'])[0];
+  SA.auditVisible = (a) => PP.can('audit.view') || (PP.can('audit.view_support') && SA.auditCat(a) === 'Support');
   /** Pending-decision note for a page. */
   SA.pending = (pd, html) => PP.ui.alert('info', `<b>${esc(pd)} pending.</b> ${html}`);
   SA.noPatientData = () => PP.ui.alert('info', '<b>No patient data here.</b> The control plane receives only versions, health flags and aggregated counters (numbers such as “patients: 1,240”). It never stores patient records, clinical notes, prescriptions or the customer’s patient invoices.');

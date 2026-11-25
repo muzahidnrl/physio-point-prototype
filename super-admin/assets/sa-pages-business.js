@@ -198,7 +198,7 @@
 
   /* ============================================================== /billing */
   PP.route('/billing', {
-    title: 'Vendor billing',
+    title: 'Vendor billing', perm: 'billing.manage',
     render({ el }) {
       const draw = () => {
         const all = PP.db.vendorInvoices.map((v) => SA.invoiceTotals(v));
@@ -256,24 +256,43 @@
 
   /* ============================================================== /support (ticket inbox) */
   const ticketTone = (p) => (p === 'Urgent' || p === 'High' ? 'error' : 'neutral');
+  B.REMOTE_SCOPES = ['Updater and logs', 'Configuration screens', 'Screen share (customer present)', 'Database diagnostics (read-only, no patient records)'];
+  B.REMOTE_TONES = { 'Pending approval': 'warning', 'Awaiting customer': 'info', Granted: 'lavender', Active: 'positive', Ended: 'neutral', Expired: 'neutral', Revoked: 'error', Rejected: 'error' };
+  B.remoteBadge = (s) => SA.badge(s, B.REMOTE_TONES[s]);
+  /** The rule, shown on every remote-support screen. */
+  B.remoteRule = () => {
+    const names = (ids) => ids.map((r) => `<b>${esc(SA.roleName(r))}</b>`).join(', ');
+    return PP.ui.alert('warning', `<b>Remote support rule.</b> Vendor access to a customer deployment is restricted, time-limited and audited.
+      <ol class="small" style="margin:6px 0 0 18px;padding:0">
+        <li>Only ${names(SA.REMOTE_RULE.request)} can <b>request</b> a session, always with a scope.</li>
+        <li>A <b>different person</b> — ${names(SA.REMOTE_RULE.approve)} — must <b>approve</b> and assign it. Nobody can approve their own request.</li>
+        <li>The <b>customer admin must grant</b> it inside their own workspace. The vendor cannot grant it.</li>
+        <li>Every session has an <b>end time</b> (at most ${SA.REMOTE_MAX_HOURS} h) and ends automatically; a request not approved and granted within ${SA.REMOTE_REQUEST_HOURS} h lapses.</li>
+        <li>Request, approval, consent, start, end, expiry and revocation are written to the <a href="#/audit">audit log</a>. Patient records stay out of scope.</li></ol>`);
+  };
   B.requestRemote = function (customerId, ticketId, after) {
     if (!can('support.remote')) return denied('support.remote');
-    const c = SA.customer(customerId);
+    const c = SA.customer(customerId); const me = PP.currentUser();
     PP.ui.modal({
-      title: `Request remote support · ${esc(c.name)}`,
-      body: `<form class="stack" novalidate onsubmit="return false">
-          ${PP.ui.alert('info', 'The customer admin must grant access. Access is time-limited, every action is audited, and patient records are out of scope unless the customer explicitly allows them (PD-004 pending).')}
-          ${PP.form.field({ name: 'scope', label: 'Scope (what you need to see or do)', type: 'textarea', rows: 2, required: true, placeholder: 'e.g. Updater logs and migration status only' })}
-          ${PP.form.field({ name: 'hours', label: 'Requested duration', type: 'select', options: [['1', '1 hour'], ['2', '2 hours'], ['4', '4 hours']], value: '2', placeholder: false })}
+      title: `Request remote support · ${esc(c.name)}`, size: 'lg',
+      body: `<form class="form-grid" novalidate onsubmit="return false">
+          <div class="full">${B.remoteRule()}</div>
+          ${PP.form.field({ name: 'kind', label: 'Scope', type: 'select', required: true, options: B.REMOTE_SCOPES, value: B.REMOTE_SCOPES[0], placeholder: false })}
+          ${PP.form.field({ name: 'hours', label: 'Requested duration', type: 'select', options: [['1', '1 hour'], ['2', '2 hours'], ['4', '4 hours']], value: '2', placeholder: false, hint: `Maximum ${SA.REMOTE_MAX_HOURS} h. The session ends automatically.` })}
+          ${PP.form.field({ name: 'scope', label: 'What exactly you need to see or do', type: 'textarea', rows: 2, required: true, full: true, placeholder: 'e.g. Updater logs and migration status only' })}
+          <div class="full small muted">Requested by <b>${esc(me.name)}</b> (${esc(SA.roleName(me.role))}). Next step: approval by another ${SA.REMOTE_RULE.approve.map((r) => esc(SA.roleName(r))).join(' or ')}.</div>
         </form>`,
-      buttons: [{ label: 'Cancel', kind: 'ghost' }, { label: 'Send request to customer', kind: 'primary', onClick: async ({ body }) => {
+      buttons: [{ label: 'Cancel', kind: 'ghost' }, { label: 'Send for approval', kind: 'primary', onClick: async ({ body }) => {
         const f = PP.$('form', body); if (!PP.form.validate(f)) return false; const v = PP.form.read(f);
+        if (v.scope.trim().length < 5) { PP.form.setError(f, 'scope', 'Describe the scope in at least 5 characters.'); return false; }
         await PP.sleep(350);
-        const s = { id: PP.nextId('RSS', 4), customerId, ticketId: ticketId || null, requestedBy: PP.currentUser().name, consentBy: null, scope: v.scope, requestedAt: PP.nowStamp(), start: null, end: null, hours: Number(v.hours), status: 'Requested', actions: [] };
+        const now = PP.nowStamp(); const hours = Math.min(SA.REMOTE_MAX_HOURS, Number(v.hours));
+        const s = { id: PP.nextId('RSS', 4), customerId, ticketId: ticketId || null, requestedBy: me.name, requestedById: me.id, assigneeId: me.id, approvedBy: null, approvedById: null, approvedAt: null, consentBy: null, scopeKind: v.kind, scope: v.scope.trim(), requestedAt: now, expiresAt: new Date(Date.now() + SA.REMOTE_REQUEST_HOURS * 3600000).toISOString(), start: null, end: null, startedAt: null, hours, status: 'Pending approval', actions: [`Requested by ${me.name} (${SA.roleName(me.role)}) · ${hours} h · ${v.kind}`] };
         PP.db.remoteSessions.unshift(s);
-        if (ticketId) { const t = PP.db.tickets.find((x) => x.id === ticketId); if (t) t.messages.push({ id: PP.nextId('MSG', 5), from: 'note', author: PP.currentUser().name, at: PP.nowStamp(), text: `Remote support requested (${s.id}, ${v.hours} h): ${v.scope}. Waiting for the customer admin to consent.` }); }
-        PP.audit('Remote support requested', customerId, `${s.id} · ${v.hours} h · ${v.scope}`);
-        PP.save(); PP.ui.toast(`Remote support request ${esc(s.id)} sent. The customer admin sees a consent prompt (simulated).`);
+        if (ticketId) { const t = PP.db.tickets.find((x) => x.id === ticketId); if (t) t.messages.push({ id: PP.nextId('MSG', 5), from: 'note', author: me.name, at: now, text: `Remote support requested (${s.id}, ${hours} h, ${v.kind}): ${v.scope}. Waiting for vendor approval, then the customer admin's consent.` }); }
+        PP.audit('Remote support requested', customerId, `${s.id} · ${hours} h · ${v.kind}: ${s.scope}`);
+        PP.notify(`Remote support needs approval: ${c.name}`, `${s.id} requested by ${me.name}`, '#/support/remote');
+        PP.save(); PP.ui.toast(`Request ${esc(s.id)} sent for approval. A Support Manager or Super Admin other than you must approve it.`, 'info', 4200);
         if (after) after();
       } }],
     });
@@ -305,7 +324,7 @@
   };
 
   PP.route('/support', {
-    title: 'Support · Ticket inbox',
+    title: 'Support · Ticket inbox', perm: 'support.manage',
     render({ el, query }) {
       const st = { q: '', status: '', priority: '', sel: query.t || null };
       el.innerHTML = PP.ui.pageHead({ title: 'Ticket inbox', subtitle: 'Customer support (platform.support). Many clinics have no IT staff.', crumbs: [['Dashboard', '#/dashboard'], ['Support']], actions: `<a class="btn" href="#/support/remote">${PP.icon('shield')} Remote support log</a><button class="btn btn-primary" data-new>${PP.icon('plus')} New ticket</button>` })
@@ -401,7 +420,7 @@
       <div style="padding:14px">${PP.ui.alert(tone, `<b>${esc(a.title || 'Announcement title')}</b><br>${esc(a.body || 'Announcement text appears here.')}<div class="small" style="margin-top:6px;opacity:.8">From the Physio Point team</div>`)}</div></div>`;
   };
   function editAnnouncement(a, after) {
-    if (!can('support.manage')) return denied('support.manage');
+    if (!can('announcements.manage')) return denied('announcements.manage');
     const isNew = !a; const cur = a || { title: '', body: '', audience: 'all', severity: 'Info' };
     const [ak, av] = (cur.audience || 'all').split(':');
     PP.ui.modal({
@@ -446,7 +465,7 @@
     }
   }
   PP.route('/support/announcements', {
-    title: 'Support · Announcements',
+    title: 'Support · Announcements', perm: 'announcements.manage',
     render({ el }) {
       el.innerHTML = PP.ui.pageHead({ title: 'Announcements', subtitle: 'In-app announcements to customer admins (maintenance, releases, incidents).', crumbs: [['Support', '#/support'], ['Announcements']], actions: `<button class="btn btn-primary" data-new>${PP.icon('plus')} New announcement</button>` })
         + PP.ui.card({ flush: true, body: '<div data-t></div>' });
@@ -468,12 +487,12 @@
           PP.$$('[data-prev]', c).forEach((b) => b.addEventListener('click', () => { const a = find(b.dataset.prev); PP.ui.modal({ title: `Preview · ${esc(a.id)}`, body: annPreview(a) + `<p class="small muted">Audience: ${esc(audienceLabel(a.audience))}</p>`, buttons: [{ label: 'Close' }] }); }));
           PP.$$('[data-edit]', c).forEach((b) => b.addEventListener('click', () => editAnnouncement(find(b.dataset.edit), t.refresh)));
           PP.$$('[data-pub]', c).forEach((b) => b.addEventListener('click', async () => {
-            if (!can('support.manage')) return denied('support.manage');
+            if (!can('announcements.manage')) return denied('announcements.manage');
             const a = find(b.dataset.pub); const ok = await PP.ui.confirm({ title: 'Publish announcement?', message: `“${esc(a.title)}” goes to ${audienceReach(a.audience)} customer(s).`, confirmLabel: 'Publish' }); if (!ok) return;
             a.status = 'Published'; a.publishedAt = PP.nowStamp(); PP.audit('Announcement published', a.id, a.title); PP.save(); PP.ui.toast('Announcement published.'); t.refresh();
           }));
           PP.$$('[data-arc]', c).forEach((b) => b.addEventListener('click', async () => {
-            if (!can('support.manage')) return denied('support.manage');
+            if (!can('announcements.manage')) return denied('announcements.manage');
             const a = find(b.dataset.arc); const ok = await PP.ui.confirm({ title: 'Archive announcement?', message: 'It disappears from customer notification centres. The record is kept.', confirmLabel: 'Archive' }); if (!ok) return;
             a.status = 'Archived'; PP.audit('Announcement archived', a.id, a.title); PP.save(); PP.ui.toast('Announcement archived.'); t.refresh();
           }));
@@ -483,65 +502,149 @@
     },
   });
 
-  /* ============================================================== /support/remote (consent log) */
+  /* ============================================================== /support/remote (approval and consent log) */
+  const sysAudit = (action, target, detail) => {
+    PP.db.audit.unshift({ id: PP.nextId('AUD'), at: PP.nowStamp(), userId: null, userName: 'System', action, target: target || '', detail: detail || '' });
+    if (PP.db.audit.length > 400) PP.db.audit.length = 400;
+  };
+  /** Ends sessions whose window is over and lapses requests nobody approved or granted in time. Returns true when something changed. */
   B.expireSessions = function () {
     let changed = false; const now = PP.nowStamp();
-    (PP.db.remoteSessions || []).forEach((s) => { if (s.status === 'Active' && s.end && s.end < now) { s.status = 'Expired'; s.actions.push('Session ended automatically at the end of the consented window'); changed = true; } });
+    (PP.db.remoteSessions || []).forEach((s) => {
+      if (['Granted', 'Active'].includes(s.status) && s.end && s.end < now) {
+        s.status = 'Expired'; s.actions.push('Session ended automatically at the end of the consented window');
+        sysAudit('Remote support session expired', s.customerId, `${s.id} · window ended ${PP.fmt.stamp(s.end)}`); changed = true;
+      } else if (['Pending approval', 'Awaiting customer'].includes(s.status) && s.expiresAt && s.expiresAt < now) {
+        const step = s.status === 'Pending approval' ? 'approved' : 'granted'; s.status = 'Expired'; s.actions.push(`Request lapsed: not ${step} within ${SA.REMOTE_REQUEST_HOURS} h`);
+        sysAudit('Remote support request lapsed', s.customerId, `${s.id} · no approval or consent within ${SA.REMOTE_REQUEST_HOURS} h`); changed = true;
+      }
+    });
     if (changed) PP.save();
+    return changed;
   };
+  const meId = () => (PP.currentUser() || {}).id;
+  /** What the current user may do with a session. Self-approval is never allowed. */
+  B.remoteRights = function (s) {
+    const me = meId(); const approver = can('support.approve_remote'); const own = s.requestedById === me;
+    return {
+      approve: s.status === 'Pending approval' && approver && !own,
+      ownPending: s.status === 'Pending approval' && own,
+      consent: s.status === 'Awaiting customer' && (can('support.remote') || approver),
+      start: s.status === 'Granted' && s.assigneeId === me,
+      end: s.status === 'Active' && (s.assigneeId === me || approver),
+      revoke: (s.status === 'Pending approval' && own) || (['Awaiting customer', 'Granted', 'Active'].includes(s.status) && (approver || own)), // a pending request is rejected by the approver, withdrawn by the requester
+    };
+  };
+  const remoteHelpers = () => PP.db.users.filter((u) => SA.userCan(u, 'support.remote'));
   PP.route('/support/remote', {
-    title: 'Support · Remote support log',
+    title: 'Support · Remote support', perm: SA.PAGE_PERMS.remote,
     render({ el }) {
       B.expireSessions();
-      el.innerHTML = PP.ui.pageHead({ title: 'Remote-support consent log', subtitle: 'Every vendor access to a customer deployment: who asked, who consented, for how long, and what was done.', crumbs: [['Support', '#/support'], ['Remote support']], actions: `<button class="btn btn-primary" data-new>${PP.icon('plus')} New request</button>` })
-        + `<div class="stack">${SA.pending('PD-004', 'Proposed rule: only explicit, time-limited, audited access. The customer admin grants each session; it ends automatically; every action is logged; patient records are out of scope unless the customer explicitly allows them.')}
+      const me = PP.currentUser(); const mine = (PP.db.remoteSessions || []).filter((s) => s.status === 'Pending approval');
+      const toApprove = mine.filter((s) => B.remoteRights(s).approve).length;
+      el.innerHTML = PP.ui.pageHead({ title: 'Remote support', subtitle: 'Every vendor access to a customer deployment: who asked, who approved, who consented, for how long, and what was done.', crumbs: [['Support', '#/support'], ['Remote support']], actions: can('support.remote') ? `<button class="btn btn-primary" data-new>${PP.icon('plus')} New request</button>` : '' })
+        + `<div class="stack">${B.remoteRule()}
+          ${can('support.approve_remote') ? PP.ui.alert(toApprove ? 'info' : 'positive', toApprove ? `<b>${toApprove} request(s) wait for your approval.</b> Requests you made yourself must be approved by someone else.` : 'No request waits for your approval.') : PP.ui.alert('info', `Your role (<b>${esc(SA.roleName(me.role))}</b>) can request sessions. Approval is done by a ${SA.REMOTE_RULE.approve.map((r) => esc(SA.roleName(r))).join(' or ')}.`)}
           ${SA.pending('PD-026', 'Who operates the deployment (vendor-managed or customer-managed) is still open. Normal operation needs no inbound vendor access: the data plane pulls (D-021).')}</div>`
         + PP.ui.card({ flush: true, body: '<div data-t></div>', cls: 'mt-4' });
       const find = (id) => PP.db.remoteSessions.find((x) => x.id === id);
+      const actionsHtml = (r) => {
+        const x = B.remoteRights(r); const out = [];
+        if (x.approve) out.push(`<button class="btn btn-sm btn-primary" data-approve="${r.id}">Approve</button><button class="btn btn-ghost btn-sm" data-reject="${r.id}">Reject</button>`);
+        if (x.ownPending) out.push('<span class="small muted" title="Nobody can approve their own request">Needs another approver</span>');
+        if (x.consent) out.push(`<button class="btn btn-sm" data-consent="${r.id}">Simulate customer consent</button>`);
+        if (x.start) out.push(`<button class="btn btn-sm btn-primary" data-start="${r.id}">Start session</button>`);
+        if (x.end) out.push(`<button class="btn btn-sm" data-end="${r.id}">End session</button>`);
+        if (x.revoke) out.push(`<button class="btn btn-ghost btn-sm" data-revoke="${r.id}">${x.ownPending ? 'Withdraw' : 'Revoke'}</button>`);
+        return `<span class="row-actions">${out.join('')}</span>`;
+      };
       const t = PP.ui.table(PP.$('[data-t]', el), {
         columns: [
           { key: 'id', label: 'Session', sort: (r) => r.requestedAt, render: (r) => `<b>${esc(r.id)}</b><span class="sub">${PP.fmt.stamp(r.requestedAt)}</span>` },
-          { key: 'c', label: 'Customer', sort: (r) => SA.customerName(r.customerId), render: (r) => `${SA.customerLink(r.customerId)}${r.ticketId ? `<span class="sub"><a href="#/support?t=${esc(r.ticketId)}">${esc(r.ticketId)}</a></span>` : ''}`, exportValue: (r) => SA.customerName(r.customerId) },
-          { key: 'who', label: 'Requested / consented', render: (r) => `${esc(r.requestedBy)}<span class="sub">${r.consentBy ? 'Consent: ' + esc(r.consentBy) : 'No consent yet'}</span>` },
-          { key: 'scope', label: 'Scope', render: (r) => `<span class="small">${esc(r.scope)}</span>` },
-          { key: 'win', label: 'Window', sort: (r) => r.start || '', render: (r) => (r.start ? `<span class="small">${PP.fmt.stamp(r.start)}<br>→ ${PP.fmt.stamp(r.end)}</span>` : `<span class="muted small">${r.hours ? r.hours + ' h requested' : '—'}</span>`) },
-          { key: 'status', label: 'Status', sort: (r) => r.status, render: (r) => SA.badge(r.status) },
-          { key: 'act', label: '', render: (r) => `<span class="row-actions">${r.status === 'Requested' ? `<button class="btn btn-sm" data-consent="${r.id}">Simulate consent</button>` : ''}${r.status === 'Active' ? `<button class="btn btn-sm" data-end="${r.id}">End session</button>` : ''}${['Requested', 'Active'].includes(r.status) ? `<button class="btn btn-ghost btn-sm" data-revoke="${r.id}">Revoke</button>` : ''}</span>` },
+          { key: 'c', label: 'Customer', sort: (r) => SA.customerName(r.customerId), render: (r) => `${SA.customerLink(r.customerId)}${r.ticketId ? `<span class="sub">${can('support.manage') ? `<a href="#/support?t=${esc(r.ticketId)}">${esc(r.ticketId)}</a>` : esc(r.ticketId)}</span>` : ''}`, exportValue: (r) => SA.customerName(r.customerId) },
+          { key: 'who', label: 'Requested / assigned', render: (r) => `${esc(r.requestedBy)}<span class="sub">${r.assigneeId && r.assigneeId !== r.requestedById ? 'Assigned: ' + esc(SA.staffName(r.assigneeId)) : 'Does the work'}</span>` },
+          { key: 'ok', label: 'Vendor approval', render: (r) => (r.approvedBy ? `${esc(r.approvedBy)}<span class="sub">${r.approvedAt ? PP.fmt.stamp(r.approvedAt) : ''}</span>` : r.status === 'Pending approval' ? '<span class="small" style="color:var(--pp-warning-fg)">Needs approval</span>' : '<span class="muted small">—</span>'), exportValue: (r) => r.approvedBy || '' },
+          { key: 'cons', label: 'Customer consent', render: (r) => (r.consentBy ? esc(r.consentBy) : '<span class="muted small">Not granted</span>'), exportValue: (r) => r.consentBy || '' },
+          { key: 'scope', label: 'Scope', render: (r) => `<b class="small">${esc(r.scopeKind || 'Scope')}</b><span class="sub">${esc(r.scope)}</span>`, exportValue: (r) => `${r.scopeKind || ''}: ${r.scope}` },
+          { key: 'win', label: 'Window / ends', sort: (r) => r.end || r.expiresAt || '', render: (r) => (r.start ? `<span class="small">${PP.fmt.stamp(r.start)}<br>→ ${PP.fmt.stamp(r.end)}</span>` : `<span class="small muted">${r.hours ? r.hours + ' h requested' : '—'}${r.expiresAt && ['Pending approval', 'Awaiting customer'].includes(r.status) ? `<br>Lapses ${PP.fmt.stamp(r.expiresAt)}` : ''}</span>`), exportValue: (r) => r.end || r.expiresAt || '' },
+          { key: 'status', label: 'Status', sort: (r) => r.status, render: (r) => B.remoteBadge(r.status), exportValue: (r) => r.status },
+          { key: 'act', label: '', render: actionsHtml },
         ],
         getRows: () => PP.db.remoteSessions.slice().sort((a, b) => (a.requestedAt < b.requestedAt ? 1 : -1)),
-        search: { placeholder: 'Search customer, staff or scope', text: (r) => `${r.id} ${SA.customerName(r.customerId)} ${r.requestedBy} ${r.consentBy || ''} ${r.scope}` },
-        filters: [{ id: 's', label: 'All statuses', options: ['Requested', 'Active', 'Expired', 'Revoked'].map((s) => [s, s]), match: (r, v) => r.status === v }],
-        exportName: 'remote-support-log', empty: { icon: 'shield', title: 'No remote sessions', text: 'Remote access is requested from a ticket and must be granted by the customer.' },
-        onRowClick: (r) => PP.ui.modal({ title: `Session ${esc(r.id)} ${SA.badge(r.status)}`, body: `<dl class="kv kv-tight"><dt>Customer</dt><dd>${SA.customerLink(r.customerId)}</dd><dt>Ticket</dt><dd>${esc(r.ticketId || '—')}</dd><dt>Requested</dt><dd>${esc(r.requestedBy)} · ${PP.fmt.stamp(r.requestedAt)}</dd><dt>Consent</dt><dd>${esc(r.consentBy || 'Not granted')}</dd><dt>Scope</dt><dd>${esc(r.scope)}</dd><dt>Window</dt><dd>${r.start ? `${PP.fmt.stamp(r.start)} → ${PP.fmt.stamp(r.end)}` : '—'}</dd>${r.revokeReason ? `<dt>Revoked</dt><dd>${esc(r.revokeReason)}</dd>` : ''}</dl><h3 class="mt-4">Action log</h3>${r.actions.length ? `<ol class="small">${r.actions.map((a) => `<li>${esc(a)}</li>`).join('')}</ol>` : '<p class="muted small">No actions recorded.</p>'}`, buttons: [{ label: 'Close' }] }),
+        search: { placeholder: 'Search customer, staff or scope', text: (r) => `${r.id} ${SA.customerName(r.customerId)} ${r.requestedBy} ${r.approvedBy || ''} ${r.consentBy || ''} ${r.scopeKind || ''} ${r.scope}` },
+        filters: [{ id: 's', label: 'All statuses', options: Object.keys(B.REMOTE_TONES).map((s) => [s, s]), match: (r, v) => r.status === v }],
+        exportName: 'remote-support-log', empty: { icon: 'shield', title: 'No remote sessions', text: 'Remote access is requested from a ticket, approved by a Support Manager or Super Admin, and granted by the customer.' },
+        onRowClick: (r) => PP.ui.modal({ title: `Session ${esc(r.id)} ${B.remoteBadge(r.status)}`, body: `<dl class="kv kv-tight"><dt>Customer</dt><dd>${SA.customerLink(r.customerId)}</dd><dt>Ticket</dt><dd>${esc(r.ticketId || '—')}</dd><dt>Requested</dt><dd>${esc(r.requestedBy)} · ${PP.fmt.stamp(r.requestedAt)}</dd><dt>Assigned to</dt><dd>${esc(SA.staffName(r.assigneeId))}</dd><dt>Vendor approval</dt><dd>${esc(r.approvedBy || 'Not approved')}${r.approvedAt ? ' · ' + PP.fmt.stamp(r.approvedAt) : ''}</dd><dt>Customer consent</dt><dd>${esc(r.consentBy || 'Not granted')}</dd><dt>Scope</dt><dd><b>${esc(r.scopeKind || '')}</b> ${esc(r.scope)}</dd><dt>Window</dt><dd>${r.start ? `${PP.fmt.stamp(r.start)} → ${PP.fmt.stamp(r.end)}` : '—'}</dd>${r.startedAt ? `<dt>Started</dt><dd>${PP.fmt.stamp(r.startedAt)}</dd>` : ''}${r.expiresAt ? `<dt>Request lapses</dt><dd>${PP.fmt.stamp(r.expiresAt)}</dd>` : ''}${r.revokeReason ? `<dt>Revoked / rejected</dt><dd>${esc(r.revokeReason)}</dd>` : ''}</dl><h3 class="mt-4">Action log</h3>${r.actions.length ? `<ol class="small">${r.actions.map((a) => `<li>${esc(a)}</li>`).join('')}</ol>` : '<p class="small muted">Nothing yet.</p>'}`, buttons: [{ label: 'Close' }] }),
         afterDraw: (c) => {
-          PP.$$('[data-consent]', c).forEach((b) => b.addEventListener('click', () => {
-            const s = find(b.dataset.consent); const cu = SA.customer(s.customerId);
+          PP.$$('[data-approve]', c).forEach((b) => b.addEventListener('click', () => {
+            const s = find(b.dataset.approve); const x = B.remoteRights(s);
+            if (!x.approve) { PP.ui.toast(s.requestedById === meId() ? 'You cannot approve your own request. Another Support Manager or a Super Admin must approve it.' : 'Your role cannot approve remote support.', 'error', 4200); return; }
+            const helpers = remoteHelpers();
             PP.ui.modal({
-              title: 'Simulate customer consent',
-              body: `<form class="stack" novalidate onsubmit="return false">${PP.ui.alert('info', `Prototype: in production the customer admin of <b>${esc(cu.name)}</b> approves this inside their own workspace. The vendor cannot grant it.`)}
-                ${PP.form.field({ name: 'who', label: 'Consenting customer admin', required: true, value: cu.contact.name })}
-                ${PP.form.field({ name: 'hours', label: 'Granted duration', type: 'select', options: [['1', '1 hour'], ['2', '2 hours'], ['4', '4 hours']], value: String(s.hours || 2), placeholder: false })}</form>`,
-              buttons: [{ label: 'Cancel', kind: 'ghost' }, { label: 'Grant (as customer)', kind: 'primary', onClick: async ({ body }) => {
+              title: `Approve ${esc(s.id)} · ${esc(SA.customerName(s.customerId))}`,
+              body: `<form class="stack" novalidate onsubmit="return false">
+                <dl class="kv kv-tight"><dt>Requested by</dt><dd>${esc(s.requestedBy)}</dd><dt>Scope</dt><dd><b>${esc(s.scopeKind || '')}</b> ${esc(s.scope)}</dd><dt>Duration</dt><dd>${esc(s.hours)} h (maximum ${SA.REMOTE_MAX_HOURS} h)</dd></dl>
+                ${PP.form.field({ name: 'assignee', label: 'Assign the session to', type: 'select', required: true, options: helpers.map((u) => [u.id, `${u.name} · ${SA.roleName(u.role)}`]), value: s.assigneeId || s.requestedById, placeholder: false, hint: 'Only this person can start the session once the customer grants it.' })}
+                ${PP.form.field({ name: 'note', label: 'Approval note (recorded in the audit log)', required: true, placeholder: 'e.g. Scope limited to the updater; no patient screens' })}
+                ${PP.ui.alert('info', 'After approval the customer admin sees a consent prompt in their workspace. Nothing opens until they grant it.')}</form>`,
+              buttons: [{ label: 'Cancel', kind: 'ghost' }, { label: 'Approve', kind: 'primary', onClick: async ({ body }) => {
                 const f = PP.$('form', body); if (!PP.form.validate(f)) return false; const v = PP.form.read(f); await PP.sleep(300);
-                s.status = 'Active'; s.consentBy = `${v.who} (customer admin)`; s.start = PP.nowStamp(); s.end = new Date(Date.now() + Number(v.hours) * 3600000).toISOString();
-                s.actions.push(`Consent granted by ${v.who} for ${v.hours} h`);
-                PP.audit('Remote support consent granted', s.customerId, `${s.id} · ${v.who} · ${v.hours} h`); PP.save(); PP.ui.toast(`Session ${esc(s.id)} active until ${PP.fmt.stamp(s.end)}.`); t.refresh();
+                const u = PP.currentUser();
+                Object.assign(s, { status: 'Awaiting customer', approvedBy: `${u.name} (${SA.roleName(u.role)})`, approvedById: u.id, approvedAt: PP.nowStamp(), assigneeId: v.assignee, expiresAt: new Date(Date.now() + SA.REMOTE_REQUEST_HOURS * 3600000).toISOString() });
+                s.actions.push(`Approved by ${u.name} (${SA.roleName(u.role)}) · assigned to ${SA.staffName(v.assignee)} · ${v.note}`);
+                PP.audit('Remote support approved', s.customerId, `${s.id} · assigned to ${SA.staffName(v.assignee)} · ${v.note}`); PP.save();
+                PP.ui.toast(`${esc(s.id)} approved. Waiting for the customer admin's consent.`); t.refresh(); SA.refreshBadges();
               } }],
             });
           }));
+          PP.$$('[data-reject]', c).forEach((b) => b.addEventListener('click', async () => {
+            const s = find(b.dataset.reject); if (!B.remoteRights(s).approve) return denied('support.approve_remote');
+            const r = await PP.ui.confirm({ title: `Reject ${esc(s.id)}?`, message: 'The request is closed. The requester can send a new one with a narrower scope.', confirmLabel: 'Reject', danger: true, reasonLabel: 'Reason', reasonRequired: true }); if (!r) return;
+            s.status = 'Rejected'; s.revokeReason = r.reason; s.actions.push(`Rejected by ${PP.currentUser().name}: ${r.reason}`);
+            PP.audit('Remote support rejected', s.customerId, `${s.id} · ${r.reason}`); PP.save(); PP.ui.toast('Request rejected.', 'warning'); t.refresh(); SA.refreshBadges();
+          }));
+          PP.$$('[data-consent]', c).forEach((b) => b.addEventListener('click', () => {
+            const s = find(b.dataset.consent); const cu = SA.customer(s.customerId);
+            if (!B.remoteRights(s).consent) { PP.ui.toast('This session is not approved yet. A Support Manager or Super Admin must approve it first.', 'error', 4200); return; }
+            PP.ui.modal({
+              title: 'Simulate customer consent',
+              body: `<form class="stack" novalidate onsubmit="return false">${PP.ui.alert('info', `Prototype: in production the customer admin of <b>${esc(cu.name)}</b> approves this inside their own workspace. The vendor cannot grant it.`)}
+                <dl class="kv kv-tight"><dt>Scope</dt><dd><b>${esc(s.scopeKind || '')}</b> ${esc(s.scope)}</dd><dt>Approved by</dt><dd>${esc(s.approvedBy)}</dd></dl>
+                ${PP.form.field({ name: 'who', label: 'Consenting customer admin', required: true, value: cu.contact.name })}
+                ${PP.form.field({ name: 'hours', label: 'Granted duration', type: 'select', options: [['1', '1 hour'], ['2', '2 hours'], ['4', '4 hours']].filter(([h]) => Number(h) <= Math.max(1, s.hours || 2)), value: String(s.hours || 2), placeholder: false, hint: 'The window starts now and closes automatically.' })}</form>`,
+              buttons: [{ label: 'Cancel', kind: 'ghost' }, { label: 'Grant (as customer)', kind: 'primary', onClick: async ({ body }) => {
+                const f = PP.$('form', body); if (!PP.form.validate(f)) return false; const v = PP.form.read(f); await PP.sleep(300);
+                const h = Math.min(SA.REMOTE_MAX_HOURS, Number(v.hours));
+                s.status = 'Granted'; s.consentBy = `${v.who} (customer admin)`; s.start = PP.nowStamp(); s.end = new Date(Date.now() + h * 3600000).toISOString();
+                s.actions.push(`Consent granted by ${v.who} for ${h} h (until ${PP.fmt.stamp(s.end)})`);
+                PP.audit('Remote support consent granted', s.customerId, `${s.id} · ${v.who} · ${h} h · ends ${s.end}`); PP.save();
+                PP.ui.toast(`Granted until ${PP.fmt.stamp(s.end)}. ${esc(SA.staffName(s.assigneeId))} can start the session.`); t.refresh();
+              } }],
+            });
+          }));
+          PP.$$('[data-start]', c).forEach((b) => b.addEventListener('click', async () => {
+            const s = find(b.dataset.start); if (!B.remoteRights(s).start) { PP.ui.toast('Only the assigned person can start this session.', 'error'); return; }
+            if (s.end < PP.nowStamp()) { B.expireSessions(); t.refresh(); PP.ui.toast('The consented window has already ended.', 'warning'); return; }
+            const ok = await PP.ui.confirm({ title: `Start ${esc(s.id)}?`, message: `Scope: <b>${esc(s.scopeKind || '')}</b> ${esc(s.scope)}.<br>The session ends automatically at <b>${PP.fmt.stamp(s.end)}</b>. Every action is logged.`, confirmLabel: 'Start session' }); if (!ok) return;
+            s.status = 'Active'; s.startedAt = PP.nowStamp(); s.actions.push(`Started by ${PP.currentUser().name}`);
+            PP.audit('Remote support session started', s.customerId, `${s.id} · scope ${s.scopeKind || ''} · ends ${s.end}`); PP.save(); PP.ui.toast('Session started. It ends automatically at the end of the window.'); t.refresh();
+          }));
           PP.$$('[data-end]', c).forEach((b) => b.addEventListener('click', async () => {
-            const s = find(b.dataset.end); const ok = await PP.ui.confirm({ title: 'End this session now?', message: 'Access is closed immediately. The log is kept.', confirmLabel: 'End session' }); if (!ok) return;
-            s.status = 'Expired'; s.end = PP.nowStamp(); s.actions.push(`Session ended by ${PP.currentUser().name}`);
+            const s = find(b.dataset.end); if (!B.remoteRights(s).end) return denied('support.approve_remote');
+            const ok = await PP.ui.confirm({ title: 'End this session now?', message: 'Access is closed immediately. The log is kept.', confirmLabel: 'End session' }); if (!ok) return;
+            s.status = 'Ended'; s.end = PP.nowStamp(); s.actions.push(`Session ended by ${PP.currentUser().name}`);
             PP.audit('Remote support session ended', s.customerId, s.id); PP.save(); PP.ui.toast('Session ended.'); t.refresh();
           }));
           PP.$$('[data-revoke]', c).forEach((b) => b.addEventListener('click', async () => {
-            const s = find(b.dataset.revoke); const r = await PP.ui.confirm({ title: 'Revoke remote access?', message: 'The request or session is revoked immediately.', confirmLabel: 'Revoke', danger: true, reasonLabel: 'Reason', reasonRequired: true }); if (!r) return;
+            const s = find(b.dataset.revoke); if (!B.remoteRights(s).revoke) return denied('support.approve_remote');
+            const r = await PP.ui.confirm({ title: 'Revoke remote access?', message: 'The request or session is revoked immediately.', confirmLabel: 'Revoke', danger: true, reasonLabel: 'Reason', reasonRequired: true }); if (!r) return;
             s.status = 'Revoked'; s.revokeReason = r.reason; if (s.start && s.end > PP.nowStamp()) s.end = PP.nowStamp(); s.actions.push(`Revoked by ${PP.currentUser().name}: ${r.reason}`);
-            PP.audit('Remote support revoked', s.customerId, `${s.id} · ${r.reason}`); PP.save(); PP.ui.toast('Access revoked.', 'warning'); t.refresh();
+            PP.audit('Remote support revoked', s.customerId, `${s.id} · ${r.reason}`); PP.save(); PP.ui.toast('Access revoked.', 'warning'); t.refresh(); SA.refreshBadges();
           }));
         },
       });
-      PP.$('[data-new]', el).addEventListener('click', () => {
+      const nb = PP.$('[data-new]', el);
+      if (nb) nb.addEventListener('click', () => {
         PP.ui.modal({ title: 'Request remote support', body: `<form novalidate onsubmit="return false">${PP.form.field({ name: 'c', label: 'Customer', type: 'select', required: true, options: PP.db.customers.filter((c) => c.status !== 'Onboarding').map((c) => [c.id, c.name]) })}</form>`,
           buttons: [{ label: 'Cancel', kind: 'ghost' }, { label: 'Continue', kind: 'primary', onClick: ({ body, close }) => { const f = PP.$('form', body); if (!PP.form.validate(f)) return false; close(); B.requestRemote(PP.form.read(f).c, null, t.refresh); } }] });
       });
@@ -552,20 +655,21 @@
   const nextStaffId = () => `VS-${Math.max(0, ...PP.db.users.map((u) => Number(String(u.id).replace(/\D/g, '')) || 0)) + 1}`;
   function editStaff(u, after) {
     if (!can('staff.manage')) return denied('staff.manage');
-    const isNew = !u; const cur = u || { name: '', email: '', mobile: '', role: 'support' };
+    const isNew = !u; const cur = u || { name: '', email: '', mobile: '', role: 'support_agent' };
     PP.ui.modal({
       title: isNew ? 'Add vendor staff' : `Edit ${esc(cur.name)}`,
       body: `<form class="form-grid" novalidate onsubmit="return false">
           ${PP.form.field({ name: 'name', label: 'Full name', required: true, value: cur.name })}
           ${PP.form.field({ name: 'email', label: 'Work email', type: 'email', required: true, rule: 'email', value: cur.email })}
           ${PP.form.field({ name: 'mobile', label: 'Mobile (for the two-step code)', type: 'tel', required: true, rule: 'mobile', value: cur.mobile })}
-          ${PP.form.field({ name: 'role', label: 'Role', type: 'select', required: true, options: PP.db.roles.map((r) => [r.id, r.name]), value: cur.role, placeholder: false, disabled: !isNew && u.id === PP.currentUser().id })}
+          ${PP.form.field({ name: 'role', label: 'Role', type: 'select', required: true, options: PP.db.roles.map((r) => [r.id, r.name]), value: cur.role, placeholder: false, disabled: !isNew && u.id === PP.currentUser().id, hint: 'What each role may do is listed under Roles below.' })}
           <div class="field full"><label class="check"><input type="checkbox" checked disabled> Two-step sign-in (MFA) required</label><div class="hint">Mandatory for every vendor account. It cannot be turned off.</div></div>
           ${isNew ? `<div class="full">${PP.ui.alert('info', 'An invitation is sent (simulated). The person sets a password and registers the two-step code on first sign-in.')}</div>` : ''}
         </form>`,
       buttons: [{ label: 'Cancel', kind: 'ghost' }, { label: isNew ? 'Add and invite' : 'Save changes', kind: 'primary', onClick: async ({ body }) => {
         const f = PP.$('form', body); if (!PP.form.validate(f)) return false; const v = PP.form.read(f);
         if (PP.db.users.some((x) => x.email.toLowerCase() === v.email.toLowerCase() && x !== u)) { PP.form.setError(f, 'email', 'Another staff account already uses this email.'); return false; }
+        if (!isNew && u.role === 'super_admin' && v.role && v.role !== 'super_admin' && u.status === 'Active' && PP.db.users.filter((x) => x.role === 'super_admin' && x.status === 'Active').length <= 1) { PP.form.setError(f, 'role', 'This is the last active Super Admin. Make someone else Super Admin first.'); return false; }
         await PP.sleep(350);
         if (isNew) {
           const n = { id: nextStaffId(), name: v.name, email: v.email, mobile: v.mobile, role: v.role, status: 'Active', mfa: true, lastLogin: null, invitedAt: PP.nowStamp() };
@@ -580,15 +684,16 @@
     });
   }
   PP.route('/staff', {
-    title: 'Vendor staff & roles',
+    title: 'Vendor staff & roles', perm: 'staff.manage',
     render({ el }) {
       const draw = () => {
         el.innerHTML = PP.ui.pageHead({ title: 'Vendor staff & roles', subtitle: 'Who can use the Super Admin console and what each role may do (platform.staff).', crumbs: [['Administration'], ['Vendor staff']], actions: `<button class="btn btn-primary" data-new>${PP.icon('userPlus')} Add staff</button>` })
-          + SA.pending('PD-033', 'The vendor roles below (Owner, Sales, Support, Billing, Release engineering, Auditor) are a proposal. In production every action is checked on the server, not only by hiding menus.')
+          + PP.ui.alert('info', '<b>Two-level RBAC (D-036).</b> The 8 vendor roles below (Super Admin, SaaS Admin, License Manager, Support Manager, Technical Admin, Finance Admin, Sales Manager, Support Agent) are confirmed by the owner. Each role sees only its own pages; in production every action is checked on the server, not only by hiding menus. Vendor roles never reach customer data except through an approved, customer-granted, time-limited and audited support session.')
           + PP.ui.card({ title: 'Staff accounts', flush: true, body: '<div data-t></div>', cls: 'mt-4' })
+          + PP.ui.card({ title: 'Roles', cls: 'mt-4', body: `<div class="sa-role-grid">${PP.db.roles.map((r) => { const all = r.permissions.includes('*'); const n = PP.db.users.filter((x) => x.role === r.id); return `<div class="sa-role-card"><div class="row between"><b>${esc(r.name)}</b><span class="small muted">${n.length} staff</span></div><div class="small muted mt-2">${esc(r.description || '')}</div><div class="sa-pill-list mt-2">${all ? '<span class="sa-pill">Every permission (*)</span>' : r.permissions.map((p) => `<span class="sa-pill" title="${esc((SA.PERMISSIONS.find(([k]) => k === p) || [p, p])[1])}"><code>${esc(p)}</code></span>`).join('')}</div>${n.length ? `<div class="small mt-2">${n.map((x) => esc(x.name) + (x.status !== 'Active' ? ' (disabled)' : '')).join(', ')}</div>` : ''}</div>`; }).join('')}</div><div class="mt-3">${B.remoteRule()}</div>` })
           + PP.ui.card({ title: 'Role permissions', actions: `<button class="btn btn-sm" data-addrole>${PP.icon('plus')} Add role</button><button class="btn btn-sm btn-primary" data-saveroles>Save permissions</button>`, flush: true, cls: 'mt-4',
             body: `<div class="table-wrap"><table class="table sa-perm-matrix"><thead><tr><th>Permission</th>${PP.db.roles.map((r) => `<th class="center" title="${esc(r.description || '')}">${esc(r.name)}</th>`).join('')}</tr></thead><tbody>
-              ${SA.PERMISSIONS.map(([p, l]) => `<tr><td>${esc(l)}<span class="sub"><code>${esc(p)}</code></span></td>${PP.db.roles.map((r) => { const all = r.permissions.includes('*'); return `<td class="center"><input type="checkbox" aria-label="${esc(r.name)}: ${esc(l)}" data-role="${r.id}" data-perm="${p}" ${all || r.permissions.includes(p) ? 'checked' : ''} ${all ? 'disabled title="Owner has every permission"' : ''}></td>`; }).join('')}</tr>`).join('')}
+              ${SA.PERMISSIONS.map(([p, l]) => `<tr><td>${esc(l)}<span class="sub"><code>${esc(p)}</code></span></td>${PP.db.roles.map((r) => { const all = r.permissions.includes('*'); return `<td class="center"><input type="checkbox" aria-label="${esc(r.name)}: ${esc(l)}" data-role="${r.id}" data-perm="${p}" ${all || r.permissions.includes(p) ? 'checked' : ''} ${all ? 'disabled title="Super Admin has every permission"' : ''}></td>`; }).join('')}</tr>`).join('')}
             </tbody></table></div>` });
         PP.ui.table(PP.$('[data-t]', el), {
           columns: [
@@ -611,7 +716,7 @@
               if (u.id === PP.currentUser().id) { PP.ui.toast('You cannot disable your own account.', 'error'); return; }
               if (u.status === 'Active') {
                 const r = await PP.ui.confirm({ title: `Disable ${esc(u.name)}?`, message: 'They are signed out everywhere and cannot sign in. The account and its audit history are kept.', confirmLabel: 'Disable', danger: true, reasonLabel: 'Reason', reasonRequired: true }); if (!r) return;
-                if (u.role === 'owner' && PP.db.users.filter((x) => x.role === 'owner' && x.status === 'Active').length <= 1) { PP.ui.toast('At least one active Owner is required.', 'error'); return; }
+                if (u.role === 'super_admin' && PP.db.users.filter((x) => x.role === 'super_admin' && x.status === 'Active').length <= 1) { PP.ui.toast('This is the last active Super Admin and cannot be disabled.', 'error'); return; }
                 u.status = 'Disabled'; PP.audit('Vendor staff disabled', u.id, `${u.name} · ${r.reason}`);
               } else { u.status = 'Active'; PP.audit('Vendor staff enabled', u.id, u.name); }
               PP.save(); PP.ui.toast(`${esc(u.name)} is now ${u.status.toLowerCase()}.`); PP.refreshShell();
@@ -653,18 +758,14 @@
   });
 
   /* ============================================================== /audit (vendor audit log) */
-  const AUDIT_CATS = [
-    ['Licences', /licen/i], ['Entitlements', /entitle|feature|override|rollback|limit|plan/i], ['Billing', /invoice|payment|reminder/i],
-    ['Support', /ticket|announce|remote/i], ['Demo & trial', /sandbox|lead|trial|demo/i], ['Releases & fleet', /release|roll ?out|update|deploy/i],
-    ['Domains & branding', /domain|ssl|brand|dns/i], ['Staff & access', /staff|role|sign/i], ['Customers', /customer|suspend|reactivat|activat|onboard/i],
-  ];
-  const auditCat = (a) => (AUDIT_CATS.find(([, re]) => re.test(a.action)) || ['Other'])[0];
+  const AUDIT_CATS = SA.AUDIT_CATS; const auditCat = SA.auditCat;
   PP.route('/audit', {
     title: 'Vendor audit log',
-    perm: 'audit.view',
+    perm: SA.PAGE_PERMS.audit,
     render({ el }) {
       el.innerHTML = PP.ui.pageHead({ title: 'Vendor audit log', subtitle: 'Append-only record of every Super Admin change: who, when, what and why.', crumbs: [['Administration'], ['Audit log']] })
         + PP.ui.alert('info', 'Entries cannot be edited or deleted. Changes to entitlements, licences, lifecycle, releases, staff and remote support all land here. No patient data is ever recorded.')
+        + (PP.can('audit.view') ? '' : `<div class="mt-3">${PP.ui.alert('warning', 'Your role sees <b>support actions only</b> (tickets, announcements and remote support: request, approval, consent, start, end, expiry). Other entries are hidden.')}</div>`)
         + PP.ui.card({ flush: true, body: '<div data-t></div>', cls: 'mt-4' });
       const range = { from: '', to: '' };
       const t = PP.ui.table(PP.$('[data-t]', el), {
@@ -675,7 +776,7 @@
           { key: 'target', label: 'Target', render: (r) => (/^CUS-\d+$/.test(r.target) && SA.customer(r.target) ? `${SA.customerLink(r.target)}<span class="sub">${esc(r.target)}</span>` : `<code>${esc(r.target || '—')}</code>`), exportValue: (r) => r.target },
           { key: 'detail', label: 'Detail', render: (r) => `<span class="small">${esc(r.detail)}</span>` },
         ],
-        getRows: () => PP.db.audit.filter((a) => (!range.from || a.at.slice(0, 10) >= range.from) && (!range.to || a.at.slice(0, 10) <= range.to)),
+        getRows: () => PP.db.audit.filter((a) => SA.auditVisible(a) && (!range.from || a.at.slice(0, 10) >= range.from) && (!range.to || a.at.slice(0, 10) <= range.to)),
         sortKey: 'at', sortDir: 'desc', pageSize: 25,
         search: { placeholder: 'Search action, target or detail', text: (r) => `${r.action} ${r.target} ${r.detail} ${r.userName} ${SA.customerName(r.target)}` },
         filters: [

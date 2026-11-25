@@ -202,3 +202,17 @@
   .adm-sticky-actions { flex-wrap: wrap; }
   .adm-sticky-actions .btn { flex: 1; }
 }
+
+/* Roles & permissions (D-036): role list + module × action grid */
+.adm-rbac { display: grid; grid-template-columns: 240px minmax(0, 1fr); gap: 0; min-height: 480px; }
+.adm-rlist { border-right: 1px solid var(--pp-border); padding: 10px; display: flex; flex-direction: column; gap: 2px; max-height: 78vh; overflow-y: auto; }
+.adm-rgroup { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--pp-text-3); padding: 10px 8px 4px; }
+.adm-rbtn { display: flex; justify-content: space-between; gap: 8px; align-items: center; text-align: left; border: 0; background: none; border-radius: 8px; padding: 7px 10px; font: inherit; font-size: 13.5px; cursor: pointer; color: var(--pp-text); }
+.adm-rbtn:hover { background: var(--pp-action-050); }
+.adm-rbtn.on { background: var(--pp-action); color: #fff; } .adm-rbtn.on .adm-rc-sub { color: #e2f5f3; }
+.adm-rdetail { padding: 14px 18px; min-width: 0; }
+.adm-rhead h3 { font-size: 17px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.adm-pgrid td, .adm-pgrid th { padding: 7px 8px; } .adm-pgrid .sub { display: block; font-size: 11px; color: var(--pp-text-3); }
+.adm-scope { width: auto; min-width: 150px; height: 32px; font-size: 13px; }
+.adm-multirole { display: flex; flex-wrap: wrap; gap: 6px 14px; max-height: 150px; overflow-y: auto; border: 1px solid var(--pp-border); border-radius: 8px; padding: 8px 10px; }
+@media (max-width: 900px) { .adm-rbac { grid-template-columns: 1fr; } .adm-rlist { border-right: 0; border-bottom: 1px solid var(--pp-border); flex-direction: row; flex-wrap: wrap; max-height: none; } .adm-rgroup { width: 100%; } }

@@ -1121,7 +1121,7 @@
       buttons: [{ label: 'Close', kind: 'ghost' }, { label: `${PP.icon('printer')} Print`, kind: 'primary', onClick: () => { printHtml(letterHtml(r)); PP.audit('Referral letter printed', r.id); PP.save(); } }] });
   }
   function refDetail(r, done) {
-    const flow = FLOW[r.direction]; const idx = flow.indexOf(r.status); const next = flow[idx + 1];
+    const flow = FLOW[r.direction]; const idx = flow.indexOf(r.status); const next = PP.can('referrals.update') ? flow[idx + 1] : null; // External Referrer: read-only
     const ft = fromTo(r);
     PP.ui.modal({
       title: `Referral ${esc(r.id)}`, size: 'lg',
@@ -1184,15 +1184,18 @@
     });
   }
   PP.route('/referrals', {
-    title: 'Referrals', perm: 'referrals.manage',
+    title: 'Referrals', perm: 'referrals.read',
     render({ el }) {
       ensure();
       const st = { dir: '' };
-      const all = () => PP.db.referrals.filter((r) => PP.inBranch(r) && (!st.dir || r.direction === st.dir));
-      el.innerHTML = PP.ui.pageHead({ title: 'Referrals', crumbs: [['Patients', '#/patients'], ['Referrals']], subtitle: 'Inbound referrals from doctors and hospitals, and outbound referrals to specialists.', actions: `<button class="btn btn-primary" data-new>${PP.icon('plus')} New referral</button>` })
+      // External Referrer (own scope): only the referrals they sent (D-036).
+      const meU = PP.currentUser(); const ownRef = PP.scopeOf('referrals') === 'own';
+      const mineRef = (r) => !ownRef || (meU && meU.referrerName && r.direction === 'Inbound' && r.externalName === meU.referrerName);
+      const all = () => PP.db.referrals.filter((r) => mineRef(r) && (ownRef || PP.inBranch(r)) && (!st.dir || r.direction === st.dir));
+      el.innerHTML = PP.ui.pageHead({ title: 'Referrals', crumbs: [['Patients', '#/patients'], ['Referrals']], subtitle: 'Inbound referrals from doctors and hospitals, and outbound referrals to specialists.', actions: PP.can('referrals.create') ? `<button class="btn btn-primary" data-new>${PP.icon('plus')} New referral</button>` : '' })
         + '<div class="grid grid-4 ops-kpis" data-kpis></div><div class="card"><div class="card-body" style="padding-bottom:0">' + PP.ui.segmented('dir', [['', 'All'], ['Inbound', 'Inbound'], ['Outbound', 'Outbound']], '') + '</div><div data-tbl></div></div>';
       const kpis = () => {
-        const list = PP.db.referrals.filter((r) => PP.inBranch(r)); const mk = PP.monthKey(PP.today());
+        const list = PP.db.referrals.filter((r) => mineRef(r) && (ownRef || PP.inBranch(r))); const mk = PP.monthKey(PP.today());
         PP.$('[data-kpis]', el).innerHTML = PP.ui.kpi({ label: 'Open inbound', value: list.filter((r) => r.direction === 'Inbound' && refOpen(r)).length, tone: 'info', icon: 'arrowDown', hint: `${list.filter((r) => r.status === 'Received').length} waiting to be accepted` })
           + PP.ui.kpi({ label: 'Open outbound', value: list.filter((r) => r.direction === 'Outbound' && refOpen(r)).length, tone: 'lavender', icon: 'arrowUp', hint: 'Awaiting acknowledgement or report' })
           + PP.ui.kpi({ label: 'Urgent open', value: list.filter((r) => r.urgency !== 'Routine' && refOpen(r)).length, tone: 'error', icon: 'alert' })
@@ -1223,7 +1226,7 @@
       function refresh() { kpis(); t.refresh(); }
       tbl.addEventListener('click', (ev) => { const b = ev.target.closest('[data-letter]'); if (b) { ev.stopPropagation(); letterModal(PP.db.referrals.find((r) => r.id === b.dataset.letter)); } });
       PP.ui.bindSegmented(el, 'dir', (v) => { st.dir = v; t.refresh(); });
-      PP.$('[data-new]', el).addEventListener('click', () => newReferralModal(refresh));
+      const nb = PP.$('[data-new]', el); if (nb) nb.addEventListener('click', () => newReferralModal(refresh));
       kpis();
     },
   });
@@ -1350,5 +1353,11 @@
       PP.$('[data-send]', el).addEventListener('click', () => sendRequestModal(draw));
       draw();
     },
+  });
+  // D-036: an External Referrer demo login, linked to a referring doctor from the referral data (runs after the 'ops' seed).
+  PP.registerSeed('referrer-demo', (db) => {
+    const inbound = (db.referrals || []).find((r) => r.direction === 'Inbound'); if (!inbound || db.users.some((u) => u.role === 'external_referrer')) return;
+    const n = db.users.reduce((m, u) => Math.max(m, Number(String(u.id).split('-')[1]) || 0), 0) + 1;
+    db.users.push({ id: 'USR-' + n, name: inbound.externalName, email: 'referrer@partner.example', mobile: inbound.externalContact || '', role: 'external_referrer', branchIds: [], status: 'Active', mfa: false, lastLogin: null, professionalId: null, referrerName: inbound.externalName, external: true });
   });
 })();

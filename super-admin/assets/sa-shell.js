@@ -6,44 +6,67 @@
 
   SA.NAV = [
     { id: 'dashboard', label: 'Dashboard', icon: 'home', href: '#/dashboard', perm: 'dashboard.view' },
-    { id: 'customers', label: 'Customers', icon: 'building', perm: 'customers.view', children: [
-      { label: 'All customers', href: '#/customers' },
+    { id: 'customers', label: 'Customers', icon: 'building', children: [
+      { label: 'All customers', href: '#/customers', perm: 'customers.view' },
       { label: 'Onboard a customer', href: '#/onboarding', perm: 'onboarding.run' },
     ] },
-    { id: 'plans', label: 'Plans & entitlements', icon: 'layers', perm: 'customers.view', children: [
-      { label: 'Plans & subscriptions', href: '#/plans' },
-      { label: 'Entitlements', href: '#/entitlements' },
+    { id: 'plans', label: 'Plans & entitlements', icon: 'layers', children: [
+      { label: 'Plans & subscriptions', href: '#/plans', perm: SA.PAGE_PERMS.plans },
+      { label: 'Entitlements', href: '#/entitlements', perm: SA.PAGE_PERMS.entitlements },
     ] },
-    { id: 'catalog', label: 'Configuration', icon: 'clipboard', perm: 'customers.view', children: [
-      { label: 'Business types', href: '#/catalog/business-types' },
-      { label: 'Professional types', href: '#/catalog/professional-types' },
-      { label: 'Clinical form templates', href: '#/catalog/forms' },
+    { id: 'catalog', label: 'Configuration', icon: 'clipboard', children: [
+      { label: 'Business types', href: '#/catalog/business-types', perm: 'catalog.manage' },
+      { label: 'Professional types', href: '#/catalog/professional-types', perm: 'catalog.manage' },
+      { label: 'Clinical form templates', href: '#/catalog/forms', perm: 'catalog.manage' },
     ] },
-    { id: 'domains', label: 'Domains & branding', icon: 'globe', perm: 'customers.view', children: [
-      { label: 'Domains', href: '#/domains', badge: () => (PP.db.domains || []).filter((d) => d.status !== 'Verified').length },
-      { label: 'Branding', href: '#/branding' },
+    { id: 'domains', label: 'Domains & branding', icon: 'globe', children: [
+      { label: 'Domains', href: '#/domains', perm: 'domains.manage', badge: () => (PP.db.domains || []).filter((d) => d.status !== 'Verified').length },
+      { label: 'Branding', href: '#/branding', perm: 'branding.manage' },
     ] },
-    { id: 'licences', label: 'Licences', icon: 'shield', href: '#/licences', perm: 'customers.view' },
-    { id: 'releases', label: 'Releases & fleet', icon: 'activity', perm: 'customers.view', children: [
-      { label: 'Releases & updates', href: '#/releases' },
-      { label: 'Fleet monitoring', href: '#/fleet', badge: () => (PP.db.deployments || []).filter((d) => d.health === 'Down' || d.updateStatus === 'Failed').length },
+    { id: 'licences', label: 'Licences', icon: 'shield', href: '#/licences', perm: SA.PAGE_PERMS.licences },
+    { id: 'releases', label: 'Releases & fleet', icon: 'activity', children: [
+      { label: 'Releases & updates', href: '#/releases', perm: 'releases.publish' },
+      { label: 'Fleet monitoring', href: '#/fleet', perm: 'fleet.view', badge: () => (PP.db.deployments || []).filter((d) => d.health === 'Down' || d.updateStatus === 'Failed').length },
     ] },
-    { id: 'billing', label: 'Vendor billing', icon: 'receipt', href: '#/billing', perm: 'customers.view' },
-    { id: 'support', label: 'Support', icon: 'mail', perm: 'customers.view', children: [
-      { label: 'Ticket inbox', href: '#/support', badge: () => (PP.db.tickets || []).filter((t) => t.status === 'Open').length },
-      { label: 'Announcements', href: '#/support/announcements' },
-      { label: 'Remote support log', href: '#/support/remote' },
+    { id: 'billing', label: 'Vendor billing', icon: 'receipt', href: '#/billing', perm: 'billing.manage' },
+    { id: 'support', label: 'Support', icon: 'mail', children: [
+      { label: 'Ticket inbox', href: '#/support', perm: 'support.manage', badge: () => (PP.db.tickets || []).filter((t) => t.status === 'Open').length },
+      { label: 'Announcements', href: '#/support/announcements', perm: 'announcements.manage' },
+      { label: 'Remote support', href: '#/support/remote', perm: SA.PAGE_PERMS.remote, badge: () => (PP.can('support.approve_remote') ? (PP.db.remoteSessions || []).filter((s) => s.status === 'Pending approval' && s.requestedById !== PP.currentUser().id).length : 0) },
     ] },
-    { id: 'demo', label: 'Demo & trial', icon: 'zap', perm: 'customers.view', children: [
-      { label: 'Sign-up leads', href: '#/demo', badge: () => (PP.db.leads || []).filter((l) => l.status === 'New').length },
-      { label: 'Sandboxes', href: '#/demo/sandboxes' },
+    { id: 'demo', label: 'Demo & trial', icon: 'zap', children: [
+      { label: 'Sign-up leads', href: '#/demo', perm: 'demo.manage', badge: () => (PP.db.leads || []).filter((l) => l.status === 'New').length },
+      { label: 'Sandboxes', href: '#/demo/sandboxes', perm: 'demo.manage' },
     ] },
-    { id: 'admin', label: 'Administration', icon: 'settings', perm: 'dashboard.view', children: [
-      { label: 'Vendor staff & roles', href: '#/staff' },
-      { label: 'Vendor audit log', href: '#/audit' },
+    { id: 'admin', label: 'Administration', icon: 'settings', children: [
+      { label: 'Vendor staff & roles', href: '#/staff', perm: 'staff.manage' },
+      { label: 'Vendor audit log', href: '#/audit', perm: SA.PAGE_PERMS.audit },
     ] },
   ];
+  /* Action gates: on pages a role may open read-only, the controls for actions it lacks are hidden (buttons) or disabled (inputs).
+     The click handlers check the same permission again; in production the server refuses the call. [route regex, selector, permission(s)] */
+  SA.ACTION_GATES = [
+    [/^\/(licences|customers\/[^/]+)$/, '[data-issue],[data-renew],[data-revoke],[data-hb]', 'licences.manage'],
+    [/^\/entitlements(\/[^/]+)?$/, '[data-plan],[data-publish],[data-publish2],[data-discard],[data-rm],[data-lim],[data-rb],[data-toggle],[data-fix]', 'entitlements.manage'],
+    [/^\/entitlements$/, '[data-g]', 'entitlements.global'],
+    [/^\/plans(\/[^/]+)?$/, '[data-new],[data-dup],[data-save]', 'plans.manage'],
+    [/^\/support$/, '[data-remote]', 'support.remote'],
+  ];
+  function applyGates(root) {
+    const path = PP.currentPath();
+    SA.ACTION_GATES.forEach(([re, sel, perm]) => {
+      if (!re.test(path) || PP.can(perm)) return;
+      PP.$$(sel, root).forEach((n) => {
+        if (n.dataset.gated) return; n.dataset.gated = '1';
+        if (/^(INPUT|SELECT|TEXTAREA)$/.test(n.tagName)) { n.disabled = true; n.title = 'Read-only for your role'; } else n.classList.add('hidden');
+      });
+    });
+  }
+  let gateQueued = false;
+  const gateObserver = new MutationObserver(() => { if (gateQueued) return; gateQueued = true; Promise.resolve().then(() => { gateQueued = false; applyGates(document.body); }); });
+  SA.applyGates = () => applyGates(document.body);
   const visible = (item) => !item.perm || PP.can(item.perm);
+
 
   function navHtml() {
     return SA.NAV.filter(visible).map((item) => {
@@ -72,7 +95,7 @@
             <div class="spacer"></div>
             <div class="sa-search rel">${PP.icon('search')}<input class="input" type="search" data-gsearch placeholder="Find a customer, tenant ID or domain" aria-label="Find a customer"></div>
             <span class="sa-env" title="Prototype: there is no real control plane">${PP.icon('shield')} Control plane</span>
-            <div class="tb-group hide-sm" title="Prototype control: see the console as another vendor role (PD-033)"><span class="tb-label">View as</span>
+            <div class="tb-group hide-sm" title="Prototype control: see the console as another vendor role (D-036)"><span class="tb-label">View as</span>
               <select class="tb-select" data-viewas aria-label="View as vendor staff">${PP.db.users.filter((x) => x.status === 'Active').map((x) => `<option value="${x.id}" ${x.id === u.id ? 'selected' : ''}>${esc(x.name)} · ${esc((PP.db.roles.find((r) => r.id === x.role) || {}).name || x.role)}</option>`).join('')}</select></div>
             <div class="rel"><button class="icon-btn" data-bell aria-label="Notifications">${PP.icon('bell')}${unread ? `<span class="dot">${unread}</span>` : ''}</button></div>
             <div class="rel"><button class="user-chip" data-user aria-label="Account menu"><span class="avatar">${esc(PP.initials(u.name))}</span><span class="who"><b>${esc(u.name)}</b><span>${esc(role ? role.name : '')}</span></span>${PP.icon('chevD', 'style="width:14px;height:14px"')}</button></div>
@@ -113,7 +136,7 @@
       PP.db.session.userId = e.target.value; PP.save(); renderShell();
       const m = PP.match(PP.currentPath());
       if (m && m.route.perm && !PP.can(m.route.perm)) location.hash = '#/dashboard'; else { setActiveNav(); PP.render(); }
-      PP.ui.toast(`Now viewing as ${esc(PP.currentUser().name)}. Menus and actions follow this role (PD-033 pending; in production every action is checked on the server).`, 'info', 4200);
+      PP.ui.toast(`Now viewing as ${esc(PP.currentUser().name)}. Menus and actions follow this role (D-036; in production every action is checked on the server).`, 'info', 4200);
     });
     PP.$('[data-bell]').addEventListener('click', (e) => {
       PP.ui.dropdown(e.currentTarget, `<div class="dd-head row between"><b>Alerts</b><button class="btn btn-ghost btn-sm" data-readall>Mark all read</button></div>
@@ -125,7 +148,8 @@
     PP.$('[data-user]').addEventListener('click', (e) => {
       const u = PP.currentUser();
       PP.ui.dropdown(e.currentTarget, `<div class="dd-head"><b>${esc(u.name)}</b><div class="small muted">${esc(u.email)} · two-step sign-in on</div></div>
-        <a href="#/staff">${PP.icon('users', 'style="width:16px"')} Vendor staff & roles</a>
+        <div class="small muted" style="padding:6px 14px">Role: <b>${esc(SA.roleName(u.role))}</b></div>
+        ${PP.can('staff.manage') ? `<a href="#/staff">${PP.icon('users', 'style="width:16px"')} Vendor staff & roles</a>` : ''}
         <a href="../index.html">${PP.icon('layers', 'style="width:16px"')} Prototype hub</a>
         <a href="../customer-web/app.html" target="_blank">${PP.icon('building', 'style="width:16px"')} Open the clinic workspace prototype</a>
         <button class="dd-item" data-reset>${PP.icon('refresh', 'style="width:16px"')} Reset control-plane demo data</button>
@@ -151,7 +175,7 @@
     const bell = PP.$('[data-bell]'); if (bell) { const unread = PP.db.notifications.filter((n) => !n.read).length; const dot = PP.$('.dot', bell); if (unread && dot) dot.textContent = unread; else if (unread && !dot) bell.insertAdjacentHTML('beforeend', `<span class="dot">${unread}</span>`); else if (!unread && dot) dot.remove(); }
   };
   PP.on('title', (t) => { const el = PP.$('#page-title'); if (el) el.textContent = t; });
-  PP.on('route:change', () => setActiveNav());
+  PP.on('route:change', () => { setActiveNav(); if (SA.business && SA.business.expireSessions) SA.business.expireSessions(); });
   PP.on('data:changed', () => SA.refreshBadges());
 
   PP.boot = function () {
@@ -160,6 +184,9 @@
     if (!u || u.status !== 'Active' || !PP.db.session.mfaAt) { location.replace('login.html'); return; }
     PP.applyBranding();
     renderShell();
+    gateObserver.observe(document.body, { childList: true, subtree: true });
+    // remote-support windows end on time even while nobody navigates
+    setInterval(() => { if (SA.business && SA.business.expireSessions && SA.business.expireSessions()) { SA.refreshBadges(); if (PP.currentPath() === '/support/remote' && !PP.$('.modal-backdrop')) PP.render(); } }, 30000);
     window.addEventListener('hashchange', PP.render);
     if (!location.hash) location.replace('#/dashboard');
     PP.render();

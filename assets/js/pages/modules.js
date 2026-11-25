@@ -27,8 +27,8 @@
   const userName = (id) => { const u = id ? PP.find.user(id) : null; return u ? u.name : '—'; };
   const byId = (coll, id) => (PP.db[coll] || []).find((x) => x.id === id) || null;
   const roleName = (id) => ((PP.db.roles || []).find((r) => r.id === id) || {}).name || id || '—';
-  const userBranchIds = () => { const u = user(); return u.role === 'admin' ? PP.db.branches.map((b) => b.id) : (u.branchIds || []); };
-  const branchOptions = () => PP.db.branches.filter((b) => userBranchIds().includes(b.id) || user().role === 'admin').map((b) => [b.id, b.name]);
+  const userBranchIds = () => PP.allowedBranchIds();
+  const branchOptions = () => PP.db.branches.filter((b) => userBranchIds().includes(b.id)).map((b) => [b.id, b.name]);
   const defaultBranch = () => { const b = PP.activeBranchId(); if (b !== 'ALL') return b; return userBranchIds()[0] || (PP.db.branches[0] || {}).id; };
   const branchShort = (id) => PP.branchName(id).split(' ')[0];
   const patLink = (id) => (id && PP.find.patient(id) ? `<a href="#/patients/${esc(id)}">${esc(PP.patientName(id))}</a>` : '—');
@@ -808,6 +808,8 @@
         on('[data-del]', async () => { if (!(await PP.ui.confirm({ title: 'Delete this draft?', message: 'The draft payroll is removed. Nothing has been paid.', confirmLabel: 'Delete draft', danger: true }))) return; PP.db.payrollRuns = PP.db.payrollRuns.filter((r) => r !== run); PP.audit('Payroll draft deleted', run.id, ''); PP.save(); PP.ui.toast('Draft deleted'); drawRun(); });
         on('[data-approve]', async () => {
           if (!run.lines.length) { PP.ui.toast('Add at least one staff member before approving.', 'error'); return; }
+          if (!PP.can('payroll.approve')) { PP.ui.toast('Your role cannot approve payroll.', 'error'); return; }
+          { const mc = PP.makerChecker(run.createdBy, 'payroll'); if (mc) { PP.ui.toast(mc, 'error', 4200); return; } }
           if (!(await PP.ui.confirm({ title: `Approve payroll for ${esc(PP.fmt.month(month))}?`, message: `${run.lines.length} staff · net ${money(t.net)}. Approval locks the amounts. Paying is a separate step.`, confirmLabel: 'Approve' }))) return;
           run.status = 'Approved'; run.approvedBy = user().id; run.approvedAt = PP.nowStamp(); PP.audit('Payroll approved', run.id, `${run.lines.length} staff · ${money(t.net)}`); PP.save(); PP.ui.toast('Payroll approved. Mark it as paid once salaries are transferred.'); drawRun();
         });
