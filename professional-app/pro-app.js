@@ -21,7 +21,7 @@
   const dayAppts = (d) => PP.db.appointments.filter((a) => a.professionalId === pro().id && a.date === d).sort((a, b) => a.start.localeCompare(b.start));
   const ACTIVE = ['Scheduled', 'Confirmed', 'Checked in', 'In session'];
   const myRoomId = () => { const c = {}; PP.db.appointments.filter((a) => a.professionalId === pro().id && a.roomId).forEach((a) => { c[a.roomId] = (c[a.roomId] || 0) + 1; }); return Object.keys(c).sort((a, b) => c[b] - c[a])[0] || null; };
-  const queue = () => PP.db.appointments.filter((a) => a.date === T() && a.status === 'Checked in' && (a.professionalId === pro().id || (myRoomId() && a.roomId === myRoomId()))).sort((a, b) => a.start.localeCompare(b.start));
+  const queue = () => PP.db.appointments.filter((a) => a.date === T() && a.status === 'Checked in' && a.professionalId === pro().id).sort((a, b) => a.start.localeCompare(b.start));
   const myPatients = () => {
     const ids = new Set(PP.db.patients.filter((p) => p.assignedProfessionalId === pro().id).map((p) => p.id));
     PP.db.appointments.forEach((a) => { if (a.professionalId === pro().id) ids.add(a.patientId); });
@@ -216,7 +216,7 @@
     const visits = PP.db.visits.filter((v) => v.patientId === p.id).sort((a, b) => b.date.localeCompare(a.date));
     const rx = PP.db.prescriptions.filter((r) => r.patientId === p.id).sort((a, b) => b.date.localeCompare(a.date));
     const plan = activePlan(p.id);
-    const upcoming = PP.db.appointments.filter((a) => a.patientId === p.id && a.date >= T() && ACTIVE.includes(a.status)).sort((a, b) => (a.date + a.start).localeCompare(b.date + b.start));
+    const upcoming = PP.db.appointments.filter((a) => a.patientId === p.id && a.professionalId === pro().id && a.date >= T() && ACTIVE.includes(a.status)).sort((a, b) => (a.date + a.start).localeCompare(b.date + b.start));
     const todayAppt = PP.db.appointments.find((a) => a.patientId === p.id && a.professionalId === pro().id && a.date === T() && ['Checked in', 'In session', 'Confirmed', 'Scheduled'].includes(a.status));
     const log = p.exerciseLog || {}; let days = 0; for (let i = 0; i < 7; i++) if ((log[PP.addDays(T(), -i)] || []).length) days++;
     const pain = visits.slice(0, 6).reverse();

@@ -152,6 +152,9 @@
   const apptRow = (a) => `<b>${esc(PP.patientName(a.patientId))}</b><span class="sub">${esc((PP.find.patient(a.patientId) || {}).mobile || '')}</span>`;
 
   /* ------------------------------------------------------------ All appointments (screen 06) */
+  /** A signed-in professional sees only their own appointments (D-031). */
+  const ownPro = () => { const u = PP.currentUser(); return u && u.role === 'professional' && u.professionalId ? u.professionalId : null; };
+  PP.ownProfessionalId = ownPro;
   PP.route('/appointments', {
     title: 'Appointments', perm: 'appointments.view',
     render({ el, query }) {
@@ -177,7 +180,7 @@
         search: { placeholder: 'Search name, ID or mobile', text: (a) => `${a.id} ${PP.patientName(a.patientId)} ${(PP.find.patient(a.patientId) || {}).mobile} ${a.patientId}` },
         tools: `<select class="select" style="width:auto" data-range aria-label="Date range">${[['today', 'Today'], ['tomorrow', 'Tomorrow'], ['week', 'Next 7 days'], ['upcoming', 'All upcoming'], ['past', 'Past 7 days'], ['all', 'All dates']].map(([v, l]) => `<option value="${v}" ${range.v === v ? 'selected' : ''}>${l}</option>`).join('')}</select><input type="date" class="input" style="width:auto" data-day aria-label="Pick a date">`,
         filters: [
-          { id: 'pro', label: `All ${PP.tl('professionals')}`, options: PP.professionalsInBranch().map((p) => [p.id, PP.proName(p)]), match: (a, v) => a.professionalId === v },
+          ...(own ? [] : [{ id: 'pro', label: `All ${PP.tl('professionals')}`, options: PP.professionalsInBranch().map((p) => [p.id, PP.proName(p)]), match: (a, v) => a.professionalId === v }]),
           { id: 'st', label: 'All status', options: PP.appt.STATUSES.concat(['Rescheduled']).map((s) => [s, s]), match: (a, v) => a.status === v },
         ],
         columns: [
@@ -213,13 +216,13 @@
           <div class="row">${PP.ui.segmented('view', [['day', 'Day'], ['week', 'Week']], st.view)}
             <div class="row" style="gap:6px"><button class="btn btn-icon btn-sm" data-nav="-1" aria-label="Previous">${PP.icon('chevL')}</button><button class="btn btn-sm" data-today>Today</button><button class="btn btn-icon btn-sm" data-nav="1" aria-label="Next">${PP.icon('chevR')}</button></div>
             <b data-label></b></div>
-          <select class="select" style="width:auto" data-pro aria-label="Filter ${PP.tl('professionals')}"><option value="">All ${PP.tl('professionals')}</option>${PP.appt.bookable().map((p) => `<option value="${p.id}">${esc(PP.proName(p))}</option>`).join('')}</select>
+          <select class="select" style="width:auto${ownPro() ? ';display:none' : ''}" data-pro aria-label="Filter ${PP.tl('professionals')}"><option value="">All ${PP.tl('professionals')}</option>${PP.appt.bookable().map((p) => `<option value="${p.id}">${esc(PP.proName(p))}</option>`).join('')}</select>
         </div><div class="card-body flush" data-cal></div>
         <div class="card-foot row small muted" style="gap:16px"><span>${PP.ui.badge('Confirmed')}</span><span>${PP.ui.badge('Scheduled')}</span><span>${PP.ui.badge('Checked in')}</span><span>${PP.ui.badge('In session')}</span><span>${PP.ui.badge('Completed')}</span><span>Click an empty slot to book it.</span></div></div>`;
       bindHeader(el);
       const draw = () => {
         PP.$('[data-label]', el).textContent = st.view === 'day' ? PP.fmt.dateLong(st.date) : `Week of ${PP.fmt.date(weekStart(st.date))}`;
-        const pros = PP.appt.bookable().filter((p) => !st.pro || p.id === st.pro);
+        const pros = ownPro() ? [PP.find.professional(ownPro())].filter(Boolean) : PP.appt.bookable().filter((p) => !st.pro || p.id === st.pro);
         const box = PP.$('[data-cal]', el);
         if (!pros.length) { box.innerHTML = PP.ui.empty({ icon: 'users', title: `No ${PP.tl('professionals')} in this branch` }); return; }
         if (st.view === 'day') drawDay(box, pros, st.date); else drawWeek(box, pros, st.date);
@@ -333,7 +336,9 @@
     title: (p) => (p.id.startsWith('REQ') ? 'Appointment Request' : 'Appointment Details'), perm: 'appointments.view',
     render({ el, params }) {
       if (params.id.startsWith('REQ')) return renderRequest(el, PP.find.request(params.id));
-      return renderAppointment(el, PP.find.appointment(params.id));
+      const a = PP.find.appointment(params.id);
+      if (a && ownPro() && a.professionalId !== ownPro()) { el.innerHTML = PP.ui.empty({ icon: 'lock', title: 'Not your appointment', text: `This appointment belongs to another ${PP.t('professional').toLowerCase()}.`, action: '<a class="btn" href="#/appointments">My appointments</a>' }); return; }
+      return renderAppointment(el, a);
     },
   });
 
