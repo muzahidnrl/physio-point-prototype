@@ -423,6 +423,15 @@
     const d = new Date(t.getFullYear(), t.getMonth() - total, t.getDate());
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   };
+  /** Age in whole years and months from a date of birth (for prefilling age fields). */
+  PP.ageParts = (dob) => {
+    if (!dob) return { y: '', m: 0 };
+    const t = PP.parseISO(PP.today()); const b = PP.parseISO(dob);
+    let m = (t.getFullYear() - b.getFullYear()) * 12 + (t.getMonth() - b.getMonth()); if (t.getDate() < b.getDate()) m--;
+    m = Math.max(0, m); return { y: Math.floor(m / 12), m: m % 12 };
+  };
+  /** "≈ 5 ফুট 7 ইঞ্চি" from centimetres. */
+  PP.ftIn = (cm) => { cm = Number(cm); if (!(cm > 0)) return ''; let ft = Math.floor(cm / 30.48); let inch = Math.round((cm - ft * 30.48) / 2.54); if (inch === 12) { ft += 1; inch = 0; } return `≈ ${ft} ফুট ${inch} ইঞ্চি`; };
   PP.isMobile = (v) => /^01[3-9]\d{8}$/.test(String(v || '').replace(/[\s-]/g, ''));
 
   /* ---------------------------------------------------------------- router */

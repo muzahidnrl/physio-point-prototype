@@ -518,7 +518,7 @@
               PP.$('[data-dup]', f).innerHTML = d.length ? PP.ui.alert('warning', `<b>Possible existing patient.</b> ${d.map((x) => `<a href="#" data-use="${x.id}">${esc(x.name)} (${x.id})</a>`).join(', ')} share this ${d.some((x) => x.mobile.replace(/\D/g, '') === (v.mobile || '').replace(/\D/g, '')) ? 'mobile number' : 'name'}. Use the existing record, or continue to register a new patient (family members can share a number).`) : '';
               PP.$$('[data-use]', f).forEach((a) => a.addEventListener('click', (e) => { e.preventDefault(); s.mode = 'existing'; s.patientId = a.dataset.use; PP.$('[value=existing]', box).checked = true; drawMode(); drawSummary(); }));
             };
-            const ftin = () => { const cm = Number(PP.$('[name=heightCm]', f).value); const el = PP.$('[data-ftin]', f); if (el) el.textContent = cm > 0 ? `≈ ${Math.floor(cm / 30.48)} ফুট ${Math.round((cm / 2.54) % 12)} ইঞ্চি` : 'ফুট-ইঞ্চিতে দেখাবে'; };
+            const ftin = () => { const cm = Number(PP.$('[name=heightCm]', f).value); const el = PP.$('[data-ftin]', f); if (el) el.textContent = PP.ftIn(cm) || 'ফুট-ইঞ্চিতে দেখাবে'; };
             PP.$$('input, select', f).forEach((i) => i.addEventListener('change', () => { s.newPatient = PP.form.read(f); check(); drawSummary(); }));
             PP.$('[name=heightCm]', f).addEventListener('input', ftin); ftin();
             check();

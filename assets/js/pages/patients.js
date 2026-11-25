@@ -96,6 +96,7 @@
     const isNew = !p;
     const v = p || { gender: '', branchId: PP.activeBranchId() !== 'ALL' ? PP.activeBranchId() : 'BR-1', customFields: {}, status: 'Active', referralSource: 'Walk-in' };
     const cf = v.customFields || {};
+    const age0 = PP.ageParts(v.dob);
     const F = PP.form.field;
     el.innerHTML = PP.ui.pageHead({
       title: isNew ? 'Patient Registration' : `Edit ${esc(v.name)}`,
@@ -109,8 +110,13 @@
             ${PP.ui.card({ title: 'Personal details', body: `<div class="form-grid">
               ${F({ name: 'name', label: 'Full name', required: true, value: v.name, placeholder: 'e.g. Nusrat Jahan', attrs: 'autocomplete="off"' })}
               ${F({ name: 'mobile', label: 'Mobile number', required: true, rule: 'mobile', value: v.mobile, placeholder: '01XXXXXXXXX', type: 'tel', hint: 'Not unique: family members may share one number.' })}
-              ${F({ name: 'dob', label: 'Date of birth', type: 'date', value: v.dob, max: PP.today() })}
-              ${F({ name: 'gender', label: 'Gender', type: 'select', value: v.gender, options: ['Female', 'Male', 'Other'] })}
+              <div class="full np-row3">
+                ${F({ name: 'gender', label: 'Gender', type: 'select', value: v.gender, options: ['Female', 'Male', 'Other'] })}
+                ${F({ name: 'ageYears', label: 'বয়স — বছর (Age, years)', type: 'number', min: 0, max: 120, step: 1, value: age0.y, placeholder: 'e.g. 35' })}
+                ${F({ name: 'ageMonths', label: 'মাস (months)', type: 'select', placeholder: false, options: Array.from({ length: 12 }, (_, i) => [String(i), i + ' month' + (i === 1 ? '' : 's')]), value: String(age0.m) })}
+              </div>
+              ${F({ name: 'weightKg', label: 'ওজন — কেজি (Weight, kg)', type: 'number', min: 1, max: 300, step: 0.1, value: v.weightKg || '', placeholder: 'e.g. 62' })}
+              ${F({ name: 'heightCm', label: 'উচ্চতা — সেমি (Height, cm)', type: 'number', min: 30, max: 250, step: 0.5, value: v.heightCm || '', placeholder: 'e.g. 165', hint: `<span data-ftin>${PP.ftIn(v.heightCm) || 'ফুট-ইঞ্চিতে দেখাবে'}</span>` })}
               ${F({ name: 'address', label: 'Address', value: v.address, placeholder: 'House, road, area, district', full: true })}
               ${F({ name: 'emergencyContact', label: 'Emergency contact', value: v.emergencyContact, placeholder: 'Name · relationship · mobile', full: true })}
             </div>` })}
@@ -173,22 +179,32 @@
       return cands;
     }
     ['name', 'mobile'].forEach((n) => PP.$(`[name="${n}"]`, form).addEventListener('blur', check));
+    PP.$('[name=heightCm]', form).addEventListener('input', (e) => { const h = PP.$('[data-ftin]', form); if (h) h.textContent = PP.ftIn(e.target.value) || 'ফুট-ইঞ্চিতে দেখাবে'; });
     if (!isNew) check();
 
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
       if (!PP.form.validate(form)) return;
+      const av = PP.form.read(form); let bad = false;
+      if (av.ageYears !== '' && (Number(av.ageYears) < 0 || Number(av.ageYears) > 120)) { PP.form.setError(form, 'ageYears', 'Enter an age between 0 and 120 years.'); bad = true; }
+      if (av.weightKg !== '' && (Number(av.weightKg) <= 0 || Number(av.weightKg) > 300)) { PP.form.setError(form, 'weightKg', 'Enter a weight between 1 and 300 kg.'); bad = true; }
+      if (av.heightCm !== '' && (Number(av.heightCm) < 30 || Number(av.heightCm) > 250)) { PP.form.setError(form, 'heightCm', 'Enter a height between 30 and 250 cm.'); bad = true; }
+      if (bad) return;
       check();
       if (cands.length && !dupAck) { box.scrollIntoView({ behavior: 'smooth', block: 'center' }); PP.ui.toast('Review the possible duplicates: open the existing record or choose “Register as new”.', 'warning', 4200); return; }
       await PP.ui.busy(PP.$('[data-save]', form), () => {
         const d = PP.form.read(form);
         const rec = isNew ? { id: PP.nextId('PAT'), registeredAt: PP.today(), email: '', bloodGroup: '', familyGroup: null, status: 'Active', documents: [], consents: [] } : p;
         Object.assign(rec, {
-          name: d.name, mobile: d.mobile.replace(/[\s-]/g, ''), dob: d.dob, gender: d.gender, address: d.address, emergencyContact: d.emergencyContact,
+          name: d.name, mobile: d.mobile.replace(/[\s-]/g, ''), gender: d.gender,
+          weightKg: d.weightKg !== '' ? Number(d.weightKg) : null, heightCm: d.heightCm !== '' ? Number(d.heightCm) : null, address: d.address, emergencyContact: d.emergencyContact,
           assignedProfessionalId: d.assignedProfessionalId || null, branchId: d.branchId || null, referralSource: d.referralSource,
           medicalHistory: d.medicalHistory, allergies: d.allergies || 'None known', previousTreatments: d.previousTreatments, notes: d.notes,
           customFields: Object.assign({}, rec.customFields || {}, { occupation: d.cf_occupation, preferredLanguage: d.cf_language }),
         });
+        // Age → estimated date of birth; an unchanged age keeps the stored date (it may be exact).
+        const ageSame = !isNew && p.dob && String(age0.y) === String(d.ageYears) && String(age0.m) === String(d.ageMonths);
+        if (!ageSame) { rec.dob = PP.dobFromAge(d.ageYears, d.ageMonths); rec.dobApprox = d.ageYears !== ''; rec.ageRecordedOn = PP.today(); }
         if (!isNew && d.status) rec.status = d.status;
         if (cands.length && dupAck) {
           if (linkFamily) {
