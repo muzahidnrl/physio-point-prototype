@@ -3,6 +3,12 @@
    Dates are generated relative to "today" so the calendar always has data. Deterministic (seeded). */
 (function () {
   'use strict';
+  /* Default permissions of the built-in roles (D-032): each role gets only what its job needs. */
+  const ROLE_PERMS = {
+    frontdesk: ['dashboard.view', 'appointments.view', 'appointments.view_all', 'appointments.manage', 'requests.review', 'patients.view', 'patients.view_all', 'patients.edit', 'billing.view', 'billing.manage', 'queue.manage', 'packages.manage', 'referrals.manage', 'feedback.view', 'lab.manage', 'professionals.view', 'support.use'],
+    professional: ['dashboard.view', 'appointments.view', 'patients.view', 'clinical.view', 'clinical.write', 'prescriptions.issue', 'templates.manage', 'exercises.manage', 'commissions.view_own'],
+    accountant: ['dashboard.view', 'billing.view', 'billing.manage', 'billing.refund', 'finance.manage', 'finance.close', 'commissions.manage', 'commissions.payout', 'reports.view', 'inventory.manage', 'payroll.manage', 'support.use'],
+  };
   const PP = window.PP;
 
   PP.seedData = function () {
@@ -74,9 +80,9 @@
     /* ---------------- roles and users ---------------- */
     db.roles = [
       { id: 'admin', name: 'Admin (Owner)', system: true, permissions: ['*'] },
-      { id: 'frontdesk', name: 'Front Desk', system: true, permissions: ['dashboard.view', 'appointments.view', 'appointments.manage', 'requests.review', 'patients.view', 'patients.edit', 'billing.view', 'billing.manage', 'queue.manage', 'packages.manage', 'referrals.manage', 'feedback.view', 'lab.manage', 'support.use'] },
-      { id: 'professional', name: 'Professional', system: true, permissions: ['dashboard.view', 'appointments.view', 'patients.view', 'clinical.write', 'prescriptions.issue', 'templates.manage', 'commissions.view_own', 'exercises.manage', 'referrals.manage', 'feedback.view', 'lab.manage'] },
-      { id: 'accountant', name: 'Accountant', system: true, permissions: ['dashboard.view', 'appointments.view', 'patients.view', 'billing.view', 'billing.manage', 'billing.refund', 'finance.manage', 'finance.close', 'commissions.manage', 'commissions.payout', 'reports.view', 'packages.manage', 'inventory.manage', 'payroll.manage', 'support.use'] },
+      { id: 'frontdesk', name: 'Front Desk', system: true, permissions: ROLE_PERMS.frontdesk.slice() },
+      { id: 'professional', name: 'Professional', system: true, permissions: ROLE_PERMS.professional.slice() },
+      { id: 'accountant', name: 'Accountant', system: true, permissions: ROLE_PERMS.accountant.slice() },
     ];
 
     /* ---------------- professionals ---------------- */
@@ -366,5 +372,9 @@
       const u = { id: nextId(), name: p.name, email, mobile: p.mobile || '', role: 'professional', branchIds: [p.branchId || 'BR-1'], status: 'Active', mfa: false, lastLogin: null, professionalId: p.id };
       db.users.push(u); p.userId = u.id; if (!p.email) p.email = email;
     });
+  });
+  // D-032: bring existing browser data onto the tightened role matrix (built-in roles only; custom roles are left alone).
+  PP.registerSeed('roles-v2', (db) => {
+    db.roles.forEach((r) => { if (r.system && ROLE_PERMS[r.id]) r.permissions = ROLE_PERMS[r.id].slice(); });
   });
 })();

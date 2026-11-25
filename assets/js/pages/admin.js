@@ -83,7 +83,7 @@
   /* =========================================================== professionals */
   PP.route('/professionals', {
     title: () => `${PP.t('professional')} Directory`,
-    perm: 'appointments.view',
+    perm: 'professionals.view',
     render({ el, query }) {
       const manage = PP.can('professionals.manage');
       const T = PP.today();
@@ -271,7 +271,7 @@
   /* --------------------------------------------------------------- profile */
   PP.route('/professionals/:id', {
     title: (params) => { const p = PP.find.professional(params.id); return p ? PP.proName(p) : PP.t('professional'); },
-    perm: 'appointments.view',
+    perm: 'professionals.view',
     render({ el, params }) {
       const p = PP.find.professional(params.id);
       if (!p) { el.innerHTML = notFoundCard(PP.t('professional'), '#/professionals'); return; }
@@ -465,7 +465,7 @@
 
   PP.route('/professionals/availability', {
     title: 'Availability & Leave',
-    perm: 'appointments.view',
+    perm: 'professionals.view',
     render({ el, query }) {
       const manage = PP.can('professionals.manage');
       const pros = PP.db.professionals.filter((p) => PP.inBranch(p) && p.status === 'Active');

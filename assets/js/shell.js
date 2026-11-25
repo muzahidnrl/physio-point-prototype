@@ -8,19 +8,19 @@
   PP.NAV = [
     { id: 'dashboard', label: 'Dashboard', icon: 'home', href: '#/dashboard', perm: 'dashboard.view' },
     { id: 'appointments', label: 'Appointments', icon: 'calendar', perm: 'appointments.view', children: [
-      { label: 'All Appointments', href: '#/appointments' },
+      { label: () => (PP.ownProId() ? 'My Appointments' : 'All Appointments'), href: '#/appointments' },
       { label: 'Calendar View', href: '#/appointments/calendar' },
       { label: 'Online Requests', href: '#/appointments/requests', perm: 'requests.review', badge: () => PP.db.requests.filter((r) => r.status === 'Pending').length },
       { label: 'Add Appointment', href: '#/appointments/new', perm: 'appointments.manage' },
       { label: 'Queue & Check-in', href: '#/queue', perm: 'queue.manage' },
     ] },
     { id: 'patients', label: 'Patients', icon: 'users', perm: 'patients.view', children: [
-      { label: 'Patient Directory', href: '#/patients' },
+      { label: () => (PP.ownProId('patients') ? 'My Patients' : 'Patient Directory'), href: '#/patients' },
       { label: 'Packages & Memberships', href: '#/packages', perm: 'packages.manage' },
       { label: 'Referrals', href: '#/referrals', perm: 'referrals.manage' },
       { label: 'Feedback', href: '#/feedback', perm: 'feedback.view' },
     ] },
-    { id: 'clinical', label: 'Prescriptions', icon: 'rx', perm: 'patients.view', children: [
+    { id: 'clinical', label: 'Prescriptions', icon: 'rx', perm: 'clinical.view', children: [
       { label: 'Prescriptions', href: '#/prescriptions' },
       { label: 'New Clinical Visit', href: '#/visits/new', perm: 'clinical.write' },
       { label: 'Condition Templates', href: '#/prescriptions/templates' },
@@ -46,7 +46,7 @@
     ] },
     { id: 'mycommission', label: 'My Commission', icon: 'coins', href: '#/commissions', perm: 'commissions.view_own', hideIf: 'commissions.manage' },
     { id: 'services', label: 'Services & Pricing', icon: 'tag', href: '#/services', perm: 'services.manage' },
-    { id: 'professionals', label: () => PP.t('professionals'), icon: 'stethoscope', perm: 'appointments.view', children: [
+    { id: 'professionals', label: () => PP.t('professionals'), icon: 'stethoscope', perm: 'professionals.view', children: [
       { label: () => `${PP.t('professional')} Directory`, href: '#/professionals' },
       { label: 'Availability & Leave', href: '#/professionals/availability' },
     ] },

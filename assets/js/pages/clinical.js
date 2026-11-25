@@ -12,7 +12,7 @@
   const cap = (proId, k) => { const t = typeOf(proId); return !!(t && t[k]); };
   const clinicalPros = () => PP.db.professionals.filter((p) => p.status === 'Active' && cap(p.id, 'canRecordClinical'));
   const proOpt = (p) => [p.id, `${PP.proName(p)} · ${(typeOf(p.id) || {}).name || p.designation}`];
-  const livePatients = () => PP.db.patients.filter((p) => !p.mergedInto && PP.inBranch(p));
+  const livePatients = () => PP.db.patients.filter((p) => !p.mergedInto && PP.inBranch(p) && PP.canSeePatient(p.id));
   const myProId = () => { const u = PP.currentUser(); return u && u.professionalId ? u.professionalId : ''; };
   const FREQ = ['Daily', 'Twice daily', '3 times daily', 'Every other day', '3 times / week', '2 times / week', 'Weekly'];
   const RX_FREQ = ['Daily', '2 sessions / week', '3 sessions / week', '5 sessions / week', 'Weekly', 'As advised'];
@@ -216,9 +216,10 @@
 
   /* ------------------------------------------------------------ visit detail */
   PP.route('/visits/:id', {
-    title: (p) => `Visit ${p.id}`, perm: 'patients.view',
+    title: (p) => `Visit ${p.id}`, perm: 'clinical.view',
     render({ el, params }) {
       const v = PP.find.visit(params.id); if (!v) { el.innerHTML = notFound('Visit', params.id, '#/patients'); return; }
+      if (PP.denyPatient(el, v.patientId)) return;
       const pt = PP.find.patient(v.patientId) || { id: v.patientId, name: '—' }; const pro = PP.find.professional(v.professionalId);
       const rxs = PP.db.prescriptions.filter((r) => r.visitId === v.id);
       const a = v.appointmentId ? PP.find.appointment(v.appointmentId) : null;
@@ -250,9 +251,9 @@
 
   /* ======================================================= prescriptions list */
   PP.route('/prescriptions', {
-    title: 'Prescriptions', perm: 'patients.view',
+    title: 'Prescriptions', perm: 'clinical.view',
     render({ el }) {
-      const rows = () => PP.db.prescriptions.filter((r) => PP.inBranch(r));
+      const rows = () => PP.db.prescriptions.filter((r) => PP.inBranch(r) && PP.canSeePatient(r.patientId));
       const all = rows(); const ms = PP.monthStart(PP.today());
       el.innerHTML = PP.ui.pageHead({
         title: 'Prescriptions', subtitle: 'Issued prescriptions are versioned: a revision never overwrites the earlier version.',
@@ -348,8 +349,8 @@
   /* ======================================================== screen 14: editor */
   PP.route('/prescriptions/new', { title: 'New Prescription', perm: 'clinical.write', render({ el, query }) { renderRx(el, null, query); } });
   PP.route('/prescriptions/:id', {
-    title: (p) => `Prescription ${p.id}`, perm: 'patients.view',
-    render({ el, params, query }) { const rx = PP.find.prescription(params.id); if (!rx) { el.innerHTML = notFound('Prescription', params.id, '#/prescriptions'); return; } renderRx(el, rx, query); },
+    title: (p) => `Prescription ${p.id}`, perm: 'clinical.view',
+    render({ el, params, query }) { const rx = PP.find.prescription(params.id); if (!rx) { el.innerHTML = notFound('Prescription', params.id, '#/prescriptions'); return; } if (PP.denyPatient(el, rx.patientId)) return; renderRx(el, rx, query); },
   });
 
   function renderRx(el, rx0, query) {
@@ -561,9 +562,10 @@
 
   /* ===================================================== screen 15: print / PDF */
   PP.route('/prescriptions/:id/print', {
-    title: (p) => `Print ${p.id}`, perm: 'patients.view',
+    title: (p) => `Print ${p.id}`, perm: 'clinical.view',
     render({ el, params }) {
       const rx = PP.find.prescription(params.id); if (!rx) { el.innerHTML = notFound('Prescription', params.id, '#/prescriptions'); return; }
+      if (PP.denyPatient(el, rx.patientId)) return;
       const s = PP.db.settings; const pt = PP.find.patient(rx.patientId) || { id: rx.patientId, name: '—' }; const pro = PP.find.professional(rx.professionalId);
       const v = rx.visitId ? PP.find.visit(rx.visitId) : null; const br = PP.find.branch(rx.branchId);
       el.innerHTML = `<div class="no-print">${PP.ui.pageHead({
@@ -606,7 +608,7 @@
 
   /* ================================================ screen 16: condition templates */
   PP.route('/prescriptions/templates', {
-    title: 'Condition Templates', perm: 'patients.view',
+    title: 'Condition Templates', perm: 'clinical.view',
     render({ el }) {
       const conds = Array.from(new Set(PP.db.templates.map((t) => t.condition)));
       el.innerHTML = PP.ui.pageHead({
@@ -635,7 +637,7 @@
   });
 
   PP.route('/prescriptions/templates/:id', {
-    title: (p) => (p.id === 'new' ? 'New Template' : `Template ${p.id}`), perm: 'patients.view',
+    title: (p) => (p.id === 'new' ? 'New Template' : `Template ${p.id}`), perm: 'clinical.view',
     render({ el, params }) {
       const isNew = params.id === 'new';
       const t0 = isNew ? null : PP.find.template(params.id);
@@ -730,9 +732,9 @@
   const packageFor = (patientId, s) => (s && s.packageId ? PP.db.packages.find((k) => k.id === s.packageId) : null) || PP.db.packages.find((k) => k.patientId === patientId && k.status === 'Active') || null;
 
   PP.route('/session-plans', {
-    title: 'Session Plans', perm: 'patients.view',
+    title: 'Session Plans', perm: 'clinical.view',
     render({ el }) {
-      const rows = () => PP.db.sessionPlans.filter((s) => PP.inBranch(PP.find.patient(s.patientId) || {}));
+      const rows = () => PP.db.sessionPlans.filter((s) => PP.inBranch(PP.find.patient(s.patientId) || {}) && PP.canSeePatient(s.patientId));
       el.innerHTML = PP.ui.pageHead({
         title: 'Session Plans', subtitle: 'Planned sessions, progress and the next session for each patient.',
         crumbs: [['Prescriptions', '#/prescriptions'], ['Session plans']],
@@ -791,9 +793,10 @@
   }
 
   PP.route('/session-plans/:id', {
-    title: (p) => `Session Plan ${p.id}`, perm: 'patients.view',
+    title: (p) => `Session Plan ${p.id}`, perm: 'clinical.view',
     render({ el, params }) {
       const s = PP.find.sessionPlan(params.id); if (!s) { el.innerHTML = notFound('Session plan', params.id, '#/session-plans'); return; }
+      if (PP.denyPatient(el, s.patientId)) return;
       const draw = () => drawPlan(el, s);
       draw();
     },

@@ -49,7 +49,7 @@
     render({ el }) {
       const groups = mobileGroups();
       const lv = {}; live().forEach((p) => { lv[p.id] = lastVisit(p.id); });
-      const rows = () => live().filter(PP.inBranch);
+      const rows = () => live().filter((p) => PP.inBranch(p) && PP.canSeePatient(p.id));
       const list = rows();
       const shareCount = (p) => (groups[digits(p.mobile)] || []).length;
       const monthStart = PP.monthStart(PP.today());
@@ -228,6 +228,7 @@
     render({ el, params, query }) {
       const p = PP.find.patient(params.id);
       if (!p || p.mergedInto) { el.innerHTML = notFound(params.id, p); return; }
+      if (PP.denyPatient(el, p.id)) return;
       renderProfile(el, p, query.tab || 'overview');
     },
   });
@@ -279,9 +280,12 @@
     const count = (coll) => PP.db[coll].filter((x) => x.patientId === p.id).length;
     const tabs = [
       { id: 'overview', label: 'Overview' },
-      { id: 'visits', label: 'Visit History', count: count('visits') },
-      { id: 'prescriptions', label: 'Prescriptions', count: count('prescriptions') },
-      { id: 'plans', label: 'Session Plans', count: count('sessionPlans') },
+      ...(PP.can('clinical.view') ? [
+        { id: 'visits', label: 'Visit History', count: count('visits') },
+        { id: 'prescriptions', label: 'Prescriptions', count: count('prescriptions') },
+        { id: 'plans', label: 'Session Plans', count: count('sessionPlans') },
+      ] : []),
+      ...((PP.can('clinical.view') || PP.can('lab.manage')) && PP.db.labOrders ? [{ id: 'lab', label: 'Lab Reports', count: count('labOrders') || null }] : []),
       { id: 'appointments', label: 'Appointments', count: count('appointments') },
       ...(PP.can('billing.view') ? [{ id: 'billing', label: 'Billing' }] : []),
       { id: 'family', label: 'Family', count: fam.length || null },
@@ -304,6 +308,18 @@
   const kv = (pairs) => `<dl class="kv">${pairs.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${v == null || v === '' ? '<span class="muted">—</span>' : v}</dd>`).join('')}</dl>`;
 
   const TABS = {
+    lab(panel, p) {
+      const READY = ['Result ready', 'Delivered'];
+      const testName = (t) => ((PP.db.labTests || []).find((x) => x.id === t) || { name: t }).name;
+      const list = (PP.db.labOrders || []).filter((o) => o.patientId === p.id).sort((a, b) => String(b.orderedAt).localeCompare(String(a.orderedAt)));
+      panel.innerHTML = `<div class="card"><div class="card-head"><h3>Lab reports</h3><span class="small muted">Previous test reports of this patient</span></div>${list.length
+        ? `<div class="table-wrap"><table class="table"><thead><tr><th>Order</th><th>Ordered</th><th>Tests</th><th>Ordered by</th><th>Status</th><th></th></tr></thead><tbody>${list.map((o) => `<tr><td class="mono">${esc(o.id)}</td><td>${esc(PP.fmt.date(String(o.orderedAt).slice(0, 10)))}</td><td>${esc(o.tests.map(testName).join(', '))}</td><td>${esc(PP.proName(o.professionalId))}</td><td>${PP.ui.badge(o.status)}</td><td>${READY.includes(o.status) ? `<button class="btn btn-sm" data-lab="${esc(o.id)}">${PP.icon('eye')} View report</button>` : '<span class="small muted">Not ready yet</span>'}</td></tr>`).join('')}</tbody></table></div>`
+        : `<div class="card-body">${PP.ui.empty({ icon: 'activity', title: 'No lab reports', text: 'Tests ordered for this patient appear here once results are released.' })}</div>`}</div>`;
+      PP.$$('[data-lab]', panel).forEach((b) => b.addEventListener('click', () => {
+        const o = PP.db.labOrders.find((x) => x.id === b.dataset.lab);
+        if (PP.labReport) PP.labReport.print(o);
+      }));
+    },
     overview(panel, p) {
       const cf = p.customFields || {};
       const upcoming = PP.db.appointments.filter((a) => a.patientId === p.id && a.date >= PP.today() && !['Completed', 'Cancelled', 'No-show'].includes(a.status)).sort((a, b) => (a.date + a.start).localeCompare(b.date + b.start))[0];

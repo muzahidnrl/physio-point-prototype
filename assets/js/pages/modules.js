@@ -1074,6 +1074,7 @@
     },
   });
 
+  PP.labReport = { html: (o) => labReportHtml(o), print: (o) => printDoc(labReportHtml(o)) };
   function labReportHtml(o) {
     const pt = PP.find.patient(o.patientId) || {};
     return `<div class="mod-sheet">${sheetHead('Laboratory report', `${esc(o.id)} · sample ${esc(o.sampleId || '—')}`)}
@@ -1243,7 +1244,7 @@
   const getChart = (pid) => PP.db.dentalCharts.find((c) => c.patientId === pid) || null;
 
   PP.route('/dental', {
-    title: 'Dental Chart', perm: 'patients.view',
+    title: 'Dental Chart', perm: 'clinical.view',
     render({ el }) {
       ensure();
       const bt = PP.db.settings.businessType;
@@ -1269,7 +1270,7 @@
   });
 
   PP.route('/dental/:patientId', {
-    title: () => 'Dental Chart', perm: 'patients.view',
+    title: () => 'Dental Chart', perm: 'clinical.view',
     render({ params, el }) {
       ensure();
       const pt = PP.find.patient(params.patientId);

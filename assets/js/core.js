@@ -174,6 +174,8 @@
     ['queue.manage', 'Run the queue and check-in desk'], ['packages.manage', 'Sell and manage packages'], ['exercises.manage', 'Manage the exercise library'],
     ['referrals.manage', 'Manage referrals'], ['feedback.view', 'View patient feedback'], ['inventory.manage', 'Manage inventory and suppliers'],
     ['payroll.manage', 'Manage payroll'], ['lab.manage', 'Manage lab orders and results'], ['support.use', 'Contact vendor support'],
+    ['clinical.view', 'View clinical records, prescriptions and reports'], ['professionals.view', 'View the professional directory and availability'],
+    ['appointments.view_all', 'See every professional’s appointments'], ['patients.view_all', 'See every patient (not only own patients)'],
   ];
   PP.can = function (perm) {
     const u = PP.currentUser(); if (!u) return false;
@@ -181,6 +183,21 @@
     return !!role && (role.permissions.includes('*') || role.permissions.includes(perm));
   };
   PP.currentUser = () => (PP.db && PP.db.session ? PP.find.user(PP.db.session.userId) : null);
+  /* Record scope (D-032): a user linked to a professional, without the "view all" permission, sees only their own work. */
+  PP.ownProId = (kind) => { const u = PP.currentUser(); if (!u || !u.professionalId) return null; return PP.can(kind === 'patients' ? 'patients.view_all' : 'appointments.view_all') ? null : u.professionalId; };
+  /** A professional may open a patient only when the patient is under their treatment (assigned, booked, seen or prescribed by them). */
+  PP.canSeePatient = function (pid) {
+    const own = PP.ownProId('patients'); if (!own) return true;
+    const p = PP.find.patient(pid); if (!p) return false;
+    const mine = (x) => x.patientId === pid && x.professionalId === own;
+    return p.assignedProfessionalId === own || PP.db.appointments.some(mine) || PP.db.visits.some(mine) || PP.db.prescriptions.some(mine) || (PP.db.sessionPlans || []).some(mine);
+  };
+  /** Renders a "not your patient" notice and returns true when the current user may not see this patient's records. */
+  PP.denyPatient = function (el, pid) {
+    if (PP.canSeePatient(pid)) return false;
+    el.innerHTML = '<div class="card">' + PP.ui.empty({ icon: 'lock', title: 'Not your patient', text: 'You can see a patient’s records only while the patient is under your treatment.', action: '<a class="btn" href="#/patients">My patients</a>' }) + '</div>';
+    return true;
+  };
 
   /* ----------------------------------------------------------- scheduling */
   // Blueprint rule: blocked times include leave, breaks, confirmed appointments and clinic closures.

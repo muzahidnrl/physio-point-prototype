@@ -153,14 +153,13 @@
 
   /* ------------------------------------------------------------ All appointments (screen 06) */
   /** A signed-in professional sees only their own appointments (D-031). */
-  const ownPro = () => { const u = PP.currentUser(); return u && u.role === 'professional' && u.professionalId ? u.professionalId : null; };
-  PP.ownProfessionalId = ownPro;
+  const ownPro = () => PP.ownProId();
   PP.route('/appointments', {
     title: 'Appointments', perm: 'appointments.view',
     render({ el, query }) {
       el.innerHTML = `${header('all')}<div class="card mt-4" data-tbl></div>`;
       bindHeader(el);
-      const me = PP.currentUser(); const own = me.role === 'professional' && me.professionalId;
+      const me = PP.currentUser(); const own = !!PP.ownProId();
       const range = { v: query.range || 'today' };
       const inRange = (a) => {
         const t = PP.today();

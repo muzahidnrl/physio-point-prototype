@@ -20,7 +20,7 @@
     title: 'Dashboard', perm: 'dashboard.view',
     render({ el }) {
       const u = PP.currentUser(); const T = PP.today(); const Y = PP.addDays(T, -1);
-      const own = u.role === 'professional' && u.professionalId;
+      const own = !!PP.ownProId();
       const mine = (a) => !own || a.professionalId === u.professionalId;
       const todays = PP.db.appointments.filter((a) => a.date === T && PP.inBranch(a) && mine(a) && !['Cancelled', 'Rescheduled'].includes(a.status)).sort((a, b) => a.start.localeCompare(b.start));
       const ydays = PP.db.appointments.filter((a) => a.date === Y && PP.inBranch(a) && mine(a) && !['Cancelled', 'Rescheduled'].includes(a.status));
