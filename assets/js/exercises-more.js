@@ -233,16 +233,133 @@
     Posture: 'Keep the movement small and comfortable.',
     Breathing: 'Stop and rest if you feel light-headed.',
   };
+  /* ---------------- Pack 2 (100): post-surgery, neuro, sports, women's health, vestibular, jaw, thoracic ---------------- */
+  const R2 = [
+    // Post-surgery knee (TKR / ACL) and hip (THR)
+    ['Gluteal sets', 'Hip', 3, 10, 5, 'Mat', 'Lie on your back and squeeze the buttocks together, hold, relax.'],
+    ['Seated knee extension (post-op)', 'Knee', 3, 10, 3, 'Chair', 'Sit and straighten the operated knee as far as is comfortable, then lower.'],
+    ['Assisted heel slide with strap', 'Knee', 3, 10, null, 'Towel', 'Use a strap around the foot to help slide the heel and bend the knee.'],
+    ['Knee extension hang (prone)', 'Knee', 3, 1, 60, 'Mat', 'Lie on your front with the lower leg off the bed and let the knee straighten.'],
+    ['Mini squat with support', 'Knee', 3, 10, null, 'Chair', 'Hold a chair and bend both knees a little, then stand up.'],
+    ['Wall sit hold', 'Knee', 3, 1, 20, 'Wall', 'Back on the wall, knees bent to about 45°, hold.'],
+    ['Reverse lunge', 'Knee', 3, 8, null, 'None', 'Step backwards and lower the back knee, then return to standing.'],
+    ['Single-leg squat to chair', 'Knee', 3, 6, null, 'Chair', 'Stand on one leg and slowly sit down to a chair, then stand.'],
+    ['Hip abduction lying (post-op)', 'Hip', 3, 10, null, 'Mat', 'Lie on your back and slide the operated leg out and back, toes up.'],
+    ['Standing hip abduction with band', 'Hip', 3, 12, null, 'Resistance band', 'Band around the ankles, lift the leg out to the side.'],
+    ['Standing hip extension with band', 'Hip', 3, 12, null, 'Resistance band', 'Band around the ankles, move the leg backwards with control.'],
+    ['Seated march (post-op)', 'Hip', 3, 10, null, 'Chair', 'Sit tall and lift one knee a little, then the other.'],
+    ['Stair climbing practice', 'Knee', 2, 5, null, 'Step', 'Up with the good leg, down with the operated leg, holding the rail.'],
+    // Shoulder post-op / frozen shoulder
+    ['Pendulum circles', 'Shoulder', 2, 10, null, 'Chair', 'Lean on a table, let the arm hang and draw small circles.'],
+    ['Passive forward elevation lying', 'Shoulder', 3, 10, 3, 'None', 'Lie down and lift the affected arm overhead with the good hand.'],
+    ['Overhead reach lying with stick', 'Shoulder', 3, 10, 3, 'Stick', 'Lie down holding a stick and lift both arms overhead.'],
+    ['Shoulder flexion standing', 'Shoulder', 3, 10, null, 'None', 'Lift the straight arm forward and up as high as is comfortable.'],
+    ['Lateral raise', 'Shoulder', 3, 10, null, 'Dumbbell', 'Lift the arms out to the side to shoulder height.'],
+    ['Front raise', 'Shoulder', 3, 10, null, 'Dumbbell', 'Lift the arms forward to shoulder height, thumbs up.'],
+    ['Overhead press (light)', 'Shoulder', 3, 10, null, 'Dumbbell', 'Press light weights from the shoulders to overhead.'],
+    ['Prone row', 'Shoulder', 3, 10, 2, 'Dumbbell', 'Lie face down on a bed, pull the weight up towards the chest.'],
+    ['Hand behind the back stretch', 'Shoulder', 3, 1, 20, 'Towel', 'Slide the hand up the back as far as is comfortable.'],
+    // Neuro / stroke rehab
+    ['Bridging (neuro)', 'Hip', 3, 8, 5, 'Mat', 'Knees bent, lift the hips evenly; a helper can steady the weak knee.'],
+    ['Rolling to side', 'Spine', 2, 5, null, 'Mat', 'Bend the knees, turn the head and roll onto the side.'],
+    ['Supine to sit practice', 'Core', 2, 5, null, 'Mat', 'Roll onto the side, drop the legs off the bed and push up to sit.'],
+    ['Weight shift in sitting', 'Core', 2, 10, null, 'Chair', 'Sit tall and shift the weight from one buttock to the other.'],
+    ['Reaching in sitting', 'Core', 2, 10, null, 'Chair', 'Sit and reach forward and to the sides, then return upright.'],
+    ['Sit to stand with arm support', 'Knee', 3, 8, null, 'Chair', 'Use the armrests to help, stand up, then sit down slowly.'],
+    ['Standing weight shift (neuro)', 'Balance', 2, 10, null, 'Chair', 'Hold support and shift the weight onto the weak leg, then back.'],
+    ['Assisted arm raise (clasped hands)', 'Shoulder', 3, 10, null, 'None', 'Clasp the hands together and lift both arms forward and up.'],
+    ['Hand opening and closing', 'Wrist & Hand', 3, 10, null, 'None', 'Open the hand wide, then close it into a soft fist.'],
+    ['Putty squeeze', 'Wrist & Hand', 3, 10, 3, 'None', 'Squeeze therapy putty in the palm, then relax.'],
+    ['Wrist extension assisted', 'Wrist & Hand', 3, 10, null, 'None', 'Support the forearm and lift the hand up with help from the other hand.'],
+    ['Walking with stick', 'Balance', 1, 1, 300, 'Stick', 'Walk with the stick in the hand opposite the weak leg.'],
+    ['Step forward and back', 'Balance', 2, 10, null, 'Chair', 'Hold support and step forward and back with each leg.'],
+    // Sports rehab / strength
+    ['Goblet squat', 'Knee', 3, 10, null, 'Dumbbell', 'Hold a weight at the chest and squat down keeping the chest up.'],
+    ['Romanian deadlift (light)', 'Hip', 3, 10, null, 'Dumbbell', 'Hinge at the hips with a straight back, lower the weights along the legs.'],
+    ['Good morning (bodyweight)', 'Hip', 3, 10, null, 'None', 'Hands behind the head, hinge forward from the hips with a straight back.'],
+    ['Nordic hamstring (assisted)', 'Knee', 3, 5, null, 'Mat', 'Kneel with the feet held, lean forward slowly using the hamstrings.'],
+    ['Copenhagen side plank (short)', 'Hip', 3, 1, 15, 'Chair', 'Side plank with the top knee on a chair seat.'],
+    ['Lateral band walk', 'Hip', 3, 10, null, 'Resistance band', 'Band around the ankles, walk sideways keeping the knees soft.'],
+    ['Single-leg deadlift', 'Hip', 3, 8, null, 'None', 'Stand on one leg and hinge forward, the other leg moving back.'],
+    ['Step-up with knee drive', 'Knee', 3, 8, null, 'Step', 'Step up and drive the other knee up to hip height.'],
+    ['Calf raise on step', 'Ankle', 3, 12, null, 'Step', 'Stand on a step and rise up on the toes, then lower below the step.'],
+    ['Hop and hold', 'Balance', 3, 5, 3, 'None', 'Hop gently forward on one leg and hold the landing.'],
+    ['Jumping jacks (low impact)', 'Core', 2, 15, null, 'None', 'Step one foot out while raising the arms, alternate sides.'],
+    ['Wood chop with band', 'Core', 3, 10, null, 'Resistance band', 'Pull the band diagonally across the body from high to low.'],
+    ['Plank shoulder taps', 'Core', 3, 10, null, 'Mat', 'In a plank, tap the opposite shoulder with one hand, keep the hips still.'],
+    ['Push-up on knees', 'Shoulder', 3, 8, null, 'Mat', 'On the knees, lower the chest towards the floor and push up.'],
+    ['Band external rotation at 90°', 'Shoulder', 3, 12, null, 'Resistance band', 'Elbow up at shoulder height, rotate the forearm up against the band.'],
+    // Spine / thoracic
+    ['Cobra stretch', 'Spine', 3, 8, 3, 'Mat', 'Lie on your front and lift the chest on straight arms, hips down.'],
+    ['Seated forward bend', 'Spine', 2, 1, 30, 'Chair', 'Sit and bend forward slowly, letting the head and arms hang.'],
+    ['Thoracic rotation in side lying', 'Spine', 2, 10, null, 'Mat', 'Lie on your side, knees bent, rotate the top arm and chest open.'],
+    ['Quadruped rocking', 'Spine', 2, 10, null, 'Mat', 'On hands and knees, rock the hips back towards the heels and forward.'],
+    ['Windscreen wipers', 'Spine', 2, 10, null, 'Mat', 'Lie with knees bent and feet wide, drop both knees side to side.'],
+    ['McKenzie standing extension', 'Spine', 2, 10, 2, 'None', 'Stand with hands on the hips and lean back gently.'],
+    ['Lumbar stabilisation with ball squeeze', 'Core', 3, 10, 5, 'Exercise ball', 'Lie with knees bent, squeeze a ball between the knees and brace.'],
+    ['Seated thoracic extension', 'Posture', 2, 10, 3, 'Chair', 'Sit, hands behind the head, lift the chest towards the ceiling.'],
+    ['Shoulder retraction with band', 'Posture', 3, 12, 2, 'Resistance band', 'Pull the band back, squeezing the shoulder blades together.'],
+    ['Wall chin tuck', 'Posture', 3, 10, 5, 'Wall', 'Stand with the back to the wall and press the back of the head gently into it.'],
+    ['Chest stretch in corner', 'Posture', 3, 1, 30, 'Wall', 'Forearms on two walls in a corner, lean in gently.'],
+    // Neck & jaw (TMJ)
+    ['Neck rotation with overpressure', 'Neck', 2, 8, 5, 'None', 'Turn the head and add a gentle push with the hand at the end.'],
+    ['Neck flexion with hand support', 'Neck', 2, 8, 5, 'None', 'Bring the chin to the chest, adding light pressure with the hands.'],
+    ['Scalene stretch', 'Neck', 3, 1, 20, 'None', 'Hold the collarbone down, tilt the head away and look up slightly.'],
+    ['Jaw opening controlled (TMJ)', 'Neck', 3, 10, null, 'None', 'Tongue on the roof of the mouth, open the jaw slowly in a straight line.'],
+    ['Jaw side to side (TMJ)', 'Neck', 3, 10, null, 'None', 'Move the lower jaw gently side to side with the teeth apart.'],
+    ['Chin tuck sitting', 'Neck', 3, 10, 5, 'Chair', 'Sit tall and draw the chin straight back.'],
+    // Vestibular / falls prevention
+    ['Gaze stabilisation (head turns)', 'Balance', 3, 1, 30, 'None', 'Look at a target and turn the head side to side, keeping the target clear.'],
+    ['Brandt–Daroff exercise', 'Balance', 1, 5, 30, 'Mat', 'Sit, lie quickly to one side with the head turned up, wait, sit up, then repeat on the other side.'],
+    ['Standing with eyes closed', 'Balance', 3, 1, 20, 'Chair', 'Stand with feet together near support and close the eyes.'],
+    ['Heel raise with support (falls)', 'Balance', 3, 10, null, 'Chair', 'Hold a chair and rise onto the toes, then lower.'],
+    ['Single leg stance on cushion', 'Balance', 3, 1, 15, 'Pillow', 'Stand on one leg on a cushion, holding support if needed.'],
+    ['Walking on a line', 'Balance', 2, 10, null, 'None', 'Walk forward along a straight line on the floor.'],
+    ['Turning practice', 'Balance', 2, 5, null, 'None', 'Take small steps to turn in a full circle, both directions.'],
+    // Women's health / pelvic floor
+    ['Pelvic floor contraction (slow)', 'Core', 3, 10, 5, 'Mat', 'Lift and squeeze the pelvic floor as if stopping wind, hold, relax fully.'],
+    ['Pelvic floor quick flicks', 'Core', 3, 10, null, 'Mat', 'Squeeze and let go of the pelvic floor quickly.'],
+    ['Transversus abdominis activation', 'Core', 3, 10, 10, 'Mat', 'Gently draw the lower tummy in towards the spine and breathe normally.'],
+    ['Side-lying leg circles', 'Hip', 2, 10, null, 'Mat', 'Lie on your side and draw small circles with the straight top leg.'],
+    ['Cat–cow in pregnancy', 'Spine', 2, 8, null, 'Mat', 'On hands and knees, gently round and then flatten the back.'],
+    ['Pelvic tilt standing', 'Spine', 3, 10, 3, 'Wall', 'Stand and gently tuck the pelvis under, then release.'],
+    // Ankle & foot extra
+    ['Ankle stretch kneeling', 'Ankle', 2, 1, 30, 'Mat', 'Kneel and sit back gently to stretch the front of the ankles.'],
+    ['Toe spread', 'Ankle', 3, 10, 3, 'None', 'Spread the toes wide apart, hold, relax.'],
+    ['Toe curls', 'Ankle', 3, 10, 3, 'None', 'Curl the toes down as if gripping the floor, then relax.'],
+    ['Single-leg balance on toes', 'Ankle', 3, 1, 10, 'Chair', 'Stand on one leg and rise on the toes, holding support.'],
+    ['Ankle inversion isometric', 'Ankle', 3, 10, 5, 'None', 'Press the inside of the foot against the other foot, hold.'],
+    ['Ankle eversion isometric', 'Ankle', 3, 10, 5, 'Wall', 'Press the outside of the foot against a wall, hold.'],
+    // Elbow & hand extra
+    ['Elbow flexion with band', 'Elbow', 3, 12, null, 'Resistance band', 'Stand on the band and bend the elbow to bring the hand up.'],
+    ['Hammer curl', 'Elbow', 3, 10, null, 'Dumbbell', 'Thumbs up, bend the elbows to lift the weights.'],
+    ['Forearm rotation with hammer', 'Elbow', 3, 10, null, 'Dumbbell', 'Hold a light hammer or bottle and turn the palm up and down slowly.'],
+    ['Finger extension with band', 'Wrist & Hand', 3, 10, null, 'Resistance band', 'Rubber band around the fingers, open the fingers against it.'],
+    ['Thumb flexion and extension', 'Wrist & Hand', 3, 10, null, 'None', 'Bend the thumb across the palm, then stretch it out.'],
+    ['Wrist flexion with weight', 'Wrist & Hand', 3, 10, null, 'Dumbbell', 'Palm up, curl a light weight up by bending the wrist.'],
+    // Cardio / general
+    ['Seated pedal exerciser', 'Knee', 1, 1, 600, 'Chair', 'Pedal slowly on a pedal exerciser while seated.'],
+    ['Brisk walking', 'Balance', 1, 1, 1200, 'None', 'Walk briskly for 20 minutes, able to talk but not sing.'],
+    ['Marching on the spot', 'Balance', 3, 20, null, 'None', 'March on the spot, lifting the knees and swinging the arms.'],
+    ['Step-ups for fitness', 'Knee', 3, 15, null, 'Step', 'Step up and down a low step at a steady pace.'],
+    ['Seated arm raises', 'Shoulder', 3, 10, null, 'Chair', 'Sit tall and lift both arms forward and overhead.'],
+    ['Box breathing', 'Breathing', 4, 1, 16, 'None', 'Breathe in for 4, hold for 4, out for 4, hold for 4.'],
+    ['Rib expansion with band', 'Breathing', 3, 8, null, 'Resistance band', 'Band around the lower ribs, breathe in to stretch the band.'],
+    ['Relaxed breathing lying', 'Breathing', 1, 1, 180, 'Mat', 'Lie with knees bent and breathe slowly into the tummy for 3 minutes.'],
+  ];
   PP.EXERCISES_MORE = R;
-  PP.registerSeed('exercises-200', (db) => {
+  PP.EXERCISES_PACK2 = R2;
+  const addPack = (db, rows, source) => {
     db.exercises = db.exercises || [];
     const have = new Set(db.exercises.map((e) => e.name.toLowerCase()));
     let n = db.exercises.reduce((m, e) => Math.max(m, Number(String(e.id).split('-')[1]) || 0), 0);
-    R.forEach(([name, area, sets, reps, hold, equipment, instructions], i) => {
+    rows.forEach(([name, area, sets, reps, hold, equipment, instructions], i) => {
       if (have.has(name.toLowerCase())) return;
       n += 1;
       db.exercises.push({ id: 'EX-' + String(n).padStart(2, '0'), name, area, instructions, precautions: PRECAUTION[area] || '', defaultSets: sets, defaultReps: reps,
-        holdSeconds: hold, equipment, media: i % 4 === 0 ? 'video' : 'image', status: 'Active', source: 'Library pack 1' });
+        holdSeconds: hold, equipment, media: i % 4 === 0 ? 'video' : 'image', status: 'Active', source });
     });
-  });
+  };
+  PP.registerSeed('exercises-200', (db) => addPack(db, R, 'Library pack 1'));
+  PP.registerSeed('exercises-pack2', (db) => addPack(db, R2, 'Library pack 2'));
 })();

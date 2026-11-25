@@ -244,6 +244,7 @@
     ].join('');
     const meta = [
       ['Phone', `<a href="tel:${esc(digits(p.mobile))}">${esc(p.mobile)}</a>`], ['Age', esc(p.dob ? PP.fmt.age(p.dob) : '—')], ['Gender', esc(p.gender || '—')],
+      ...(p.weightKg || p.heightCm ? [['Weight / height', esc([p.weightKg ? p.weightKg + ' kg' : '', p.heightCm ? p.heightCm + ' cm' : ''].filter(Boolean).join(' · '))]] : []),
       [PP.t('professional'), esc(PP.proName(p.assignedProfessionalId))], ['Last visit', esc(lv ? PP.fmt.date(lv) : 'No visits yet')], ['Branch', esc(PP.branchName(p.branchId))],
     ];
     el.innerHTML = PP.ui.pageHead({ title: 'Patient Profile', crumbs: [['Patients', '#/patients'], [p.name]] }) + `

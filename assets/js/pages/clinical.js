@@ -369,6 +369,7 @@
       const v = rx.visitId ? PP.find.visit(rx.visitId) : null;
       if (v) { rx.patientId = v.patientId; rx.professionalId = v.professionalId; rx.assessment = v.assessment || ''; rx.condition = v.complaint || ''; rx.cc = v.complaint || ''; rx.oe = [v.assessment, v.rom].filter(Boolean).join('\n'); rx.advice = v.advice || ''; rx.painScore = v.painScale; }
       const mine = myProId(); if (mine && cap(mine, 'canRecordClinical')) rx.professionalId = mine;
+      const pw = PP.find.patient(rx.patientId); if (pw && pw.weightKg && !rx.weight) rx.weight = pw.weightKg;
     }
     const pros = pickablePros(clinicalPros()); if (rx.professionalId && !pros.some((p) => p.id === rx.professionalId) && PP.find.professional(rx.professionalId)) pros.push(PP.find.professional(rx.professionalId));
     const tpls = PP.db.templates.filter((t) => t.status === 'Approved' || t.version > 1 || (t.history || []).length);

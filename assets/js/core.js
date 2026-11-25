@@ -50,7 +50,12 @@
       const style = PP.db && PP.db.settings && PP.db.settings.currencyStyle === 'symbol' ? '৳ ' : 'BDT ';
       return `${neg ? '−' : ''}${style}${abs}`;
     },
-    age(dob) { if (!dob) return '—'; const t = PP.parseISO(PP.today()); const b = PP.parseISO(dob); let a = t.getFullYear() - b.getFullYear(); if (t < new Date(t.getFullYear(), b.getMonth(), b.getDate())) a--; return `${a} years`; },
+    age(dob) {
+      if (!dob) return '—'; const t = PP.parseISO(PP.today()); const b = PP.parseISO(dob);
+      let m = (t.getFullYear() - b.getFullYear()) * 12 + (t.getMonth() - b.getMonth()); if (t.getDate() < b.getDate()) m--;
+      const y = Math.floor(m / 12); const mo = m % 12;
+      return y < 1 ? `${mo} month${mo === 1 ? '' : 's'}` : mo ? `${y} years ${mo} month${mo === 1 ? '' : 's'}` : `${y} years`;
+    },
     pct(n) { return `${PP.round2(n)}%`; },
   };
 
@@ -410,6 +415,13 @@
     const m = String(mobile || '').replace(/\D/g, '');
     const n = String(name || '').trim().toLowerCase();
     return PP.db.patients.filter((p) => p.id !== excludeId && !p.mergedInto && ((m && p.mobile.replace(/\D/g, '') === m) || (n && p.name.toLowerCase() === n)));
+  };
+  /** Date of birth estimated from an age given in years and months (staff often know the age, not the date). */
+  PP.dobFromAge = (years, months) => {
+    if (years === '' || years == null) return '';
+    const total = Number(years) * 12 + (Number(months) || 0); const t = PP.parseISO(PP.today());
+    const d = new Date(t.getFullYear(), t.getMonth() - total, t.getDate());
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   };
   PP.isMobile = (v) => /^01[3-9]\d{8}$/.test(String(v || '').replace(/[\s-]/g, ''));
 

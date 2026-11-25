@@ -141,3 +141,7 @@ a.grow:hover { text-decoration: none; }
   .sched li { flex-wrap: wrap; }
   .otp input { width: 40px; height: 48px; }
 }
+
+/* Manual booking, new patient: gender · age years · months side by side */
+.np-row3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--pp-s4) var(--pp-s5); }
+@media (max-width: 640px) { .np-row3 { grid-template-columns: 1fr 1fr; } .np-row3 > .field:first-child { grid-column: 1 / -1; } }

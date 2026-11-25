@@ -504,8 +504,13 @@
             m.innerHTML = `<form class="form-grid" data-np onsubmit="return false">
               ${PP.form.field({ name: 'name', label: 'Full name', required: true, value: s.newPatient.name || '' })}
               ${PP.form.field({ name: 'mobile', label: 'Mobile number', required: true, rule: 'mobile', placeholder: '01XXXXXXXXX', value: s.newPatient.mobile || '' })}
+              <div class="full np-row3">
               ${PP.form.field({ name: 'gender', label: 'Gender', type: 'select', options: ['Female', 'Male', 'Other'], value: s.newPatient.gender || '' })}
-              ${PP.form.field({ name: 'dob', label: 'Date of birth', type: 'date', value: s.newPatient.dob || '' })}
+              ${PP.form.field({ name: 'ageYears', label: 'বয়স — বছর (Age, years)', type: 'number', min: 0, max: 120, step: 1, value: s.newPatient.ageYears != null ? s.newPatient.ageYears : '', placeholder: 'e.g. 35' })}
+              ${PP.form.field({ name: 'ageMonths', label: 'মাস (months)', type: 'select', placeholder: false, options: Array.from({ length: 12 }, (_, i) => [String(i), i + ' month' + (i === 1 ? '' : 's')]), value: String(s.newPatient.ageMonths || 0) })}
+              </div>
+              ${PP.form.field({ name: 'weightKg', label: 'ওজন — কেজি (Weight, kg)', type: 'number', min: 1, max: 300, step: 0.1, value: s.newPatient.weightKg || '', placeholder: 'e.g. 62' })}
+              ${PP.form.field({ name: 'heightCm', label: 'উচ্চতা — সেমি (Height, cm)', type: 'number', min: 30, max: 250, step: 0.5, value: s.newPatient.heightCm || '', placeholder: 'e.g. 165', hint: '<span data-ftin>ফুট-ইঞ্চিতে দেখাবে</span>' })}
               <div class="full" data-dup></div></form>`;
             const f = PP.$('[data-np]', m);
             const check = () => {
@@ -513,7 +518,9 @@
               PP.$('[data-dup]', f).innerHTML = d.length ? PP.ui.alert('warning', `<b>Possible existing patient.</b> ${d.map((x) => `<a href="#" data-use="${x.id}">${esc(x.name)} (${x.id})</a>`).join(', ')} share this ${d.some((x) => x.mobile.replace(/\D/g, '') === (v.mobile || '').replace(/\D/g, '')) ? 'mobile number' : 'name'}. Use the existing record, or continue to register a new patient (family members can share a number).`) : '';
               PP.$$('[data-use]', f).forEach((a) => a.addEventListener('click', (e) => { e.preventDefault(); s.mode = 'existing'; s.patientId = a.dataset.use; PP.$('[value=existing]', box).checked = true; drawMode(); drawSummary(); }));
             };
+            const ftin = () => { const cm = Number(PP.$('[name=heightCm]', f).value); const el = PP.$('[data-ftin]', f); if (el) el.textContent = cm > 0 ? `≈ ${Math.floor(cm / 30.48)} ফুট ${Math.round((cm / 2.54) % 12)} ইঞ্চি` : 'ফুট-ইঞ্চিতে দেখাবে'; };
             PP.$$('input, select', f).forEach((i) => i.addEventListener('change', () => { s.newPatient = PP.form.read(f); check(); drawSummary(); }));
+            PP.$('[name=heightCm]', f).addEventListener('input', ftin); ftin();
             check();
           }
         };
@@ -521,7 +528,13 @@
         drawMode();
         PP.$('[data-next]', box).addEventListener('click', () => {
           if (s.mode === 'existing') { if (!s.patientId) { const f = PP.$('.field', box); f.classList.add('has-error'); PP.$('#psearch', box).focus(); return; } }
-          else { const f = PP.$('[data-np]', box); if (!PP.form.validate(f)) return; s.newPatient = PP.form.read(f); }
+          else {
+            const f = PP.$('[data-np]', box); if (!PP.form.validate(f)) return; const v = PP.form.read(f);
+            if (v.ageYears !== '' && (Number(v.ageYears) < 0 || Number(v.ageYears) > 120)) { PP.form.setError(f, 'ageYears', 'Enter an age between 0 and 120 years.'); return; }
+            if (v.weightKg !== '' && (Number(v.weightKg) <= 0 || Number(v.weightKg) > 300)) { PP.form.setError(f, 'weightKg', 'Enter a weight between 1 and 300 kg.'); return; }
+            if (v.heightCm !== '' && (Number(v.heightCm) < 30 || Number(v.heightCm) > 250)) { PP.form.setError(f, 'heightCm', 'Enter a height between 30 and 250 cm.'); return; }
+            s.newPatient = v;
+          }
           s.step = 2; drawStep();
         });
       } else if (s.step === 2) {
@@ -601,7 +614,7 @@
           const c = conflicts(); if (c.length) { PP.ui.toast(`Someone just booked this slot: ${esc(c[0])}`, 'error', 5000); s.step = 2; drawStep(); return; }
           let pid = s.patientId;
           if (!pid) {
-            const np = { id: PP.nextId('PAT'), name: s.newPatient.name, gender: s.newPatient.gender || '', dob: s.newPatient.dob || '', mobile: s.newPatient.mobile.replace(/\D/g, ''), email: '', address: s.homeAddress || '', emergencyContact: '', assignedProfessionalId: s.pro, branchId: PP.find.professional(s.pro).branchId, referralSource: 'Walk-in', bloodGroup: '', medicalHistory: '', allergies: '', previousTreatments: '', notes: '', registeredAt: PP.today(), familyGroup: null, customFields: {}, status: 'Active' };
+            const np = { id: PP.nextId('PAT'), name: s.newPatient.name, gender: s.newPatient.gender || '', dob: PP.dobFromAge(s.newPatient.ageYears, s.newPatient.ageMonths), dobApprox: s.newPatient.ageYears !== '' && s.newPatient.ageYears != null, ageRecordedOn: PP.today(), weightKg: s.newPatient.weightKg ? Number(s.newPatient.weightKg) : null, heightCm: s.newPatient.heightCm ? Number(s.newPatient.heightCm) : null, mobile: s.newPatient.mobile.replace(/\D/g, ''), email: '', address: s.homeAddress || '', emergencyContact: '', assignedProfessionalId: s.pro, branchId: PP.find.professional(s.pro).branchId, referralSource: 'Walk-in', bloodGroup: '', medicalHistory: '', allergies: '', previousTreatments: '', notes: '', registeredAt: PP.today(), familyGroup: null, customFields: {}, status: 'Active' };
             PP.db.patients.push(np); pid = np.id; PP.audit('Patient registered', np.id, 'From manual booking');
           }
           const pro = PP.find.professional(s.pro);
