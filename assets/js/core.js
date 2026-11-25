@@ -324,8 +324,29 @@
   // and D-026 (all models; base = money received, no tax; one professional per invoice; package on receipt;
   // advance when finalised; negative balance after payout; manual % allowed, no per-branch/service/professional rules).
   PP.commission = {
-    /** Returns the commission for `amount` collected on `inv` under the clinic model (or manual %). */
+    /**
+     * Commission for `amount` collected on `inv` (D-025: only money actually received).
+     * Lab-test lines use the rate set on each test in the Test Catalogue (D-034); other lines use the clinic model.
+     * A discount lowers the money received, so it lowers the commission in the same proportion.
+     */
     calc(inv, amount, onDate) {
+      const lines = inv.lines || [];
+      const labLines = lines.filter((l) => l.kind === 'lab' || l.labTestId);
+      if (!labLines.length) return PP.commission.calcBase(inv, amount, onDate);
+      const gross = PP.sum(lines, PP.bill.lineTotal) || 1;
+      const labGross = PP.sum(labLines, PP.bill.lineTotal);
+      let labVal = 0;
+      labLines.forEach((l) => {
+        const t = (PP.db.labTests || []).find((x) => x.id === l.labTestId); const v = t ? Number(t.commissionValue) || 0 : 0;
+        if (!v) return;
+        labVal += t.commissionType === 'fixed' ? v * (Number(l.qty) || 1) * amount / gross : amount * PP.bill.lineTotal(l) / gross * v / 100;
+      });
+      const restAmt = amount * (1 - labGross / gross);
+      const rest = restAmt > 0.005 ? PP.commission.calcBase(Object.assign({}, inv, { lines: lines.filter((l) => !labLines.includes(l)) }), restAmt, onDate) : { value: 0, basis: '' };
+      return { value: PP.round2(labVal + rest.value), basis: ['Lab: rate per test', rest.value ? rest.basis : ''].filter(Boolean).join(' + ') };
+    },
+    /** The clinic's commission model (or a manual %) for non-lab money. */
+    calcBase(inv, amount, onDate) {
       const cfg = PP.db.settings.commission; const pro = PP.find.professional(inv.professionalId);
       const manual = inv.manualCommissionPercent != null && inv.manualCommissionPercent !== '' ? Number(inv.manualCommissionPercent)
         : pro && pro.manualCommissionPercent != null && pro.manualCommissionPercent !== '' ? Number(pro.manualCommissionPercent) : null;

@@ -443,7 +443,8 @@
       const canCom = PP.can('commissions.manage');
       const pFees = PP.db.settings.professionalFees || {};
       const apt0 = query.appointment ? PP.find.appointment(query.appointment) : null;
-      const pat0 = PP.find.patient((apt0 && apt0.patientId) || query.patient || '');
+      const lab0 = query.lab && PP.db.labOrders ? PP.db.labOrders.find((o) => o.id === query.lab) : null;
+      const pat0 = PP.find.patient((apt0 && apt0.patientId) || (lab0 && lab0.patientId) || query.patient || '');
       const patLabel = (p) => `${p.id} · ${p.name} · ${p.mobile}`;
       const activeServices = () => PP.db.services.filter((s) => s.status === 'Active');
       const svcOptions = (sel) => `<option value="">Choose a service…</option>${PP.db.services.filter((s) => s.status === 'Active' || s.id === sel).map((s) => `<option value="${esc(s.id)}" ${s.id === sel ? 'selected' : ''}>${esc(s.name)} · ${money(s.price)}</option>`).join('')}`;
@@ -533,7 +534,7 @@
         const editable = l.kind === 'service' && svc && svc.customPriceAllowed;
         const overridden = l.kind === 'service' && svc && Number(l.unitPrice) !== Number(l.defaultPrice);
         return `<tr data-line="${i}">
-          <td data-th="Service">${l.kind === 'service' ? `<div class="field" data-field="svc-${i}"><select class="select" data-l="serviceId" aria-label="Service">${svcOptions(l.serviceId)}</select><div class="error">Choose a service.</div></div>` : `<span class="badge ${l.kind === 'fee' ? 'lavender' : 'info'}">${l.kind === 'fee' ? 'Fee' : 'Travel'}</span>`}</td>
+          <td data-th="Service">${l.kind === 'service' ? `<div class="field" data-field="svc-${i}"><select class="select" data-l="serviceId" aria-label="Service">${svcOptions(l.serviceId)}</select><div class="error">Choose a service.</div></div>` : `<span class="badge ${l.kind === 'fee' ? 'lavender' : l.kind === 'lab' ? 'warning' : 'info'}">${l.kind === 'fee' ? 'Fee' : l.kind === 'lab' ? 'Lab test' : 'Travel'}</span>`}</td>
           <td data-th="Description"><input class="input" data-l="description" value="${esc(l.description)}" aria-label="Description"></td>
           <td data-th="Qty" class="right"><div class="field" data-field="qty-${i}"><input class="input fin-num fin-qty" type="number" min="1" step="1" data-l="qty" value="${esc(l.qty)}" aria-label="Quantity"><div class="error"></div></div></td>
           <td data-th="Unit price" class="right"><div class="field" data-field="price-${i}"><input class="input fin-num" type="number" min="0" step="50" data-l="unitPrice" value="${esc(l.unitPrice)}" ${editable ? '' : 'readonly'} aria-label="Unit price" title="${editable ? 'Custom price allowed' : 'Fixed price'}">${l.kind === 'service' && svc && !svc.customPriceAllowed ? '<div class="hint">Fixed price</div>' : ''}<div class="error"></div></div></td>
@@ -640,8 +641,14 @@
       if (pat0) { st.patientId = pat0.id; st.professionalId = (apt0 && apt0.professionalId) || pat0.assignedProfessionalId || ''; f('professionalId').value = st.professionalId; st.professionalId = f('professionalId').value; }
       drawPatient();
       if (apt0 && apt0.patientId === st.patientId) { f('appointmentId').value = apt0.id; f('appointmentId').dispatchEvent(new Event('change')); }
+      if (lab0) {
+        st.professionalId = lab0.professionalId; f('professionalId').value = lab0.professionalId; st.professionalId = f('professionalId').value;
+        st.lines = lab0.tests.map((id) => { const t = (PP.db.labTests || []).find((x) => x.id === id) || { id, name: id, price: 0 }; return { kind: 'lab', serviceId: null, labTestId: t.id, labOrderId: lab0.id, description: `${t.name} (${lab0.id})`, qty: 1, unitPrice: t.price, defaultPrice: t.price, overrideReason: '' }; });
+        if (lab0.discount) { f('discount').value = lab0.discount; f('discountReason').value = lab0.discountReason || 'Doctor’s discount'; }
+        drawPatient();
+      }
       if (!st.lines.length) st.lines.push(newServiceLine(null));
-      drawLines(); syncMethod();
+      drawLines(); syncMethod(); if (lab0) recalc();
       if (!activeServices().length) PP.ui.toast('There are no active services. Add one in Services & Pricing.', 'warning');
 
       form.addEventListener('submit', (e) => {
@@ -671,11 +678,12 @@
         PP.ui.busy($('[data-save]', el), () => {
           const inv = {
             id: PP.nextId('INV'), patientId: st.patientId, professionalId: st.professionalId, branchId, appointmentId: st.appointmentId || null, visitId: null, date: today,
-            lines: lines.map((l) => ({ serviceId: l.serviceId || null, description: l.description || PP.serviceName(l.serviceId), qty: Number(l.qty), unitPrice: r2(l.unitPrice), defaultPrice: r2(l.defaultPrice), overrideReason: Number(l.unitPrice) !== Number(l.defaultPrice) ? String(l.overrideReason || '').trim() : '', ...(l.feeType ? { feeType: l.feeType } : {}) })),
+            lines: lines.map((l) => ({ serviceId: l.serviceId || null, description: l.description || PP.serviceName(l.serviceId), qty: Number(l.qty), unitPrice: r2(l.unitPrice), defaultPrice: r2(l.defaultPrice), overrideReason: Number(l.unitPrice) !== Number(l.defaultPrice) ? String(l.overrideReason || '').trim() : '', ...(l.feeType ? { feeType: l.feeType } : {}), ...(l.kind === 'lab' ? { kind: 'lab', labTestId: l.labTestId, labOrderId: l.labOrderId } : {}) })),
             discount: t.discount, discountReason: f('discountReason').value.trim(), notes: f('notes').value.trim(), status: 'Open',
             manualCommissionPercent: canCom && f('manualPct').value !== '' ? Number(f('manualPct').value) : null, createdBy: user().id, createdAt: PP.nowStamp(),
           };
           PP.db.invoices.push(inv);
+          if (lab0) { lab0.invoiceId = inv.id; PP.audit('Lab order invoiced', lab0.id, inv.id); }
           PP.audit('Invoice created', inv.id, `${PP.patientName(inv.patientId)} · payable ${money(t.payable)}`);
           inv.lines.filter((l) => l.overrideReason).forEach((l) => PP.audit('Price override', inv.id, `${l.description}: ${PP.fmt.num(l.defaultPrice)} → ${PP.fmt.num(l.unitPrice)} · ${l.overrideReason}`));
           if (inv.manualCommissionPercent != null) PP.audit('Manual commission %', inv.id, `${inv.manualCommissionPercent}%`);

@@ -309,6 +309,7 @@
       db.labOrders.push(o);
     });
 
+    labCommissionDefaults(db);
     /* ---- dental charts (3 patients) ---- */
     const dp = [pts[2], pts[4], pts[6]].filter(Boolean);
     const tooth = (condition, surfaces, note) => ({ condition, surfaces: surfaces || [], note: note || '', updatedAt: ago(20) });
@@ -886,6 +887,7 @@
   const icdLabel = (code) => { const x = ICD10.find((i) => i[0] === code); return x ? `${x[0]} · ${x[1]}` : code || '—'; };
   const labTest = (id) => byId('labTests', id);
   const labTestName = (id) => { const t = labTest(id); return t ? t.name : id; };
+  const comText = (t) => (Number(t.commissionValue) ? (t.commissionType === 'fixed' ? `${money(t.commissionValue)} / test` : `${t.commissionValue}%`) : 'None');
   const isOverdue = (o) => ['Ordered', 'Sample collected', 'Processing'].includes(o.status) && Date.now() > stampMs(o.due);
   const orderTotal = (o) => PP.sum(o.tests, (t) => (labTest(t) || {}).price || 0);
   function refText(p) {
@@ -926,7 +928,9 @@
             <div class="error" role="alert">Choose at least one test.</div></div>`
         + F({ name: 'diagnosisCode', label: 'Clinical indication (ICD-10, optional)', type: 'select', options: ICD10.map(([c, l]) => [c, `${c} · ${l}`]), placeholder: 'Not coded' })
         + F({ name: 'notes', label: 'Notes for the lab', type: 'textarea', rows: 2, placeholder: 'e.g. Patient fasting since 10 PM' })
-        + (PP.can('billing.manage') ? F({ name: 'bill', label: 'Open a new invoice for this patient after saving', type: 'checkbox', value: false, full: true, hint: 'Lab tests are billed like any service on the invoice (one professional per invoice, D-026).' }) : '')
+        + F({ name: 'discount', label: 'ছাড় / Discount (BDT)', type: 'number', min: 0, step: 10, rule: 'nonneg', value: 0, hint: 'ডাক্তার যদি রোগীর জন্য ছাড় লিখে দেন। কমিশন আদায় হওয়া টাকার উপর, তাই ছাড় দিলে কমিশনও সেই অনুপাতে কমে।' })
+        + F({ name: 'discountReason', label: 'ছাড়ের কারণ', placeholder: 'যেমন: অসচ্ছল রোগী — ডাক্তারের লেখা' })
+        + (PP.can('billing.manage') ? F({ name: 'bill', label: 'Open the invoice for these tests after saving', type: 'checkbox', value: false, full: true, hint: 'The invoice gets one line per test, the discount and the ordering professional (commission per test, D-034).' }) : '')
         + '<div class="full mod-total" data-ltotal></div>',
       onOpen: (form) => {
         bindPatientPicker(form, (p) => { const sel = $('[name=professionalId]', form); if (p && !sel.value && p.assignedProfessionalId) sel.value = p.assignedProfessionalId; });
@@ -946,12 +950,16 @@
         if (!ids.length) { PP.form.setError(form, 'tests', 'Choose at least one test.'); return false; }
         if (readOnlyLicence()) { PP.ui.toast('Licence is read-only: new entries are paused (D-017).', 'error'); return false; }
         const pt = PP.find.patient(d.patientId);
+        const gross0 = PP.sum(ids, (id) => labTest(id).price);
+        if (Number(d.discount) > gross0) { PP.form.setError(form, 'discount', `The discount cannot be more than the test total (${money(gross0)}).`); return false; }
+        if (Number(d.discount) > 0 && !String(d.discountReason || '').trim()) { PP.form.setError(form, 'discountReason', 'Write why the discount is given.'); return false; }
         const tat = Math.max(...ids.map((id) => labTest(id).tatHours));
         const o = { id: PP.nextId('LAB'), patientId: pt.id, professionalId: d.professionalId, branchId: PP.activeBranchId() !== 'ALL' ? PP.activeBranchId() : pt.branchId || defaultBranch(), tests: ids, priority: d.priority, diagnosisCode: d.diagnosisCode, notes: d.notes, orderedAt: PP.nowStamp(), orderedBy: user().id, due: fromNow(Math.max(2, d.priority === 'Urgent' ? tat / 2 : tat) * 3600e3), status: 'Ordered', sampleId: '', sampleType: '', collectedAt: null, collectedBy: '', processingAt: null, results: {}, enteredBy: null, verifiedBy: null, verifiedAt: null, deliveredAt: null, deliveryMethod: '', invoiceId: null, history: [] };
-        addHistory(o, 'Ordered', `${ids.length} test(s) ordered by ${PP.proName(d.professionalId)}`);
+        o.discount = r2(Number(d.discount) || 0); o.discountReason = String(d.discountReason || '').trim(); o.invoiceId = null;
+        addHistory(o, 'Ordered', `${ids.length} test(s) ordered by ${PP.proName(d.professionalId)}${o.discount ? ` · discount ${money(o.discount)} (${o.discountReason})` : ''}`);
         PP.db.labOrders.push(o); PP.audit('Lab order created', o.id, `${pt.name} · ${ids.map(labTestName).join(', ')}`); PP.save();
         PP.ui.toast(`Lab order ${esc(o.id)} created for ${esc(pt.name)}.${d.bill ? ' Opening a new invoice…' : ''}`);
-        PP.go(d.bill ? `#/billing/new?patient=${encodeURIComponent(pt.id)}` : `#/lab/orders/${o.id}`);
+        PP.go(d.bill ? `#/billing/new?lab=${encodeURIComponent(o.id)}` : `#/lab/orders/${o.id}`);
       },
     });
   }
@@ -1012,6 +1020,8 @@
         + F({ name: 'tatHours', label: 'Turnaround (hours)', type: 'number', required: true, rule: 'positive', min: 1, step: 1, value: t.tatHours })
         + F({ name: 'price', label: 'Price (BDT)', type: 'number', required: true, rule: 'nonneg', min: 0, step: 1, value: t.price })
         + F({ name: 'status', label: 'Status', type: 'select', options: ['Active', 'Inactive'], value: t.status || 'Active', placeholder: false })
+        + (PP.can('commissions.manage') ? F({ name: 'commissionType', label: 'রেফারেল কমিশন (Referral commission)', type: 'select', placeholder: false, options: [['percent', '% of money received'], ['fixed', 'Fixed BDT per test']], value: t.commissionType || 'percent', hint: 'যে ডাক্তার/থেরাপিস্ট টেস্টটি অর্ডার করেন তিনি পাবেন; শুধু আদায় হওয়া টাকার উপর (D-025, D-034).' })
+          + F({ name: 'commissionValue', label: 'Commission rate / amount', type: 'number', min: 0, step: 1, rule: 'nonneg', value: t.commissionValue || 0, hint: '0 দিলে এই টেস্টে কোনো কমিশন নেই।' }) : '')
         + `<div class="field full" data-field="params"><label>Parameters and reference ranges<span class="req">*</span></label><div class="hint">Leave Low and High empty for a text result. Values outside the range are flagged High or Low on the report.</div>
           <div class="mod-param mod-param-head" aria-hidden="true"><span>Parameter</span><span>Unit</span><span>Low</span><span>High</span><span>Normal text</span><span></span></div>
           <div data-params>${t.params.map(prow).join('')}</div><button type="button" class="btn btn-sm btn-ghost" data-addp>${PP.icon('plus')} Add parameter</button><div class="error" role="alert">Add at least one parameter.</div></div>`,
@@ -1036,6 +1046,11 @@
         const dup = PP.db.labTests.find((x) => x.id !== t.id && x.code.toLowerCase() === d.code.toLowerCase());
         if (dup) { PP.form.setError(form, 'code', `Code already used by “${dup.name}”.`); return false; }
         const vals = { name: d.name, code: d.code.toUpperCase(), category: d.category, sampleType: d.sampleType, tatHours: Number(d.tatHours), price: r2(d.price), status: d.status, params };
+        if (PP.can('commissions.manage')) {
+          if (d.commissionType === 'percent' && Number(d.commissionValue) > 100) { PP.form.setError(form, 'commissionValue', 'A percentage cannot be more than 100.'); return false; }
+          vals.commissionType = d.commissionType; vals.commissionValue = r2(Number(d.commissionValue) || 0);
+          if (!isNew && (t.commissionType !== vals.commissionType || Number(t.commissionValue || 0) !== vals.commissionValue)) PP.audit('Lab commission changed', t.id, `${t.name}: ${comText(t)} → ${comText(vals)}`);
+        }
         if (isNew) { const rec = Object.assign({ id: PP.nextId('LT', 2) }, vals); PP.db.labTests.push(rec); PP.audit('Lab test added', rec.id, rec.name); PP.ui.toast(`Test “${esc(rec.name)}” added to the catalogue`); }
         else { if (t.price !== vals.price) PP.audit('Lab test price changed', t.id, `${money(t.price)} → ${money(vals.price)}`); Object.assign(t, vals); PP.ui.toast('Test saved'); }
         PP.save(); if (done) done();
@@ -1062,6 +1077,7 @@
           { key: 'sample', label: 'Sample type', render: (r) => esc(r.sampleType) },
           { key: 'tat', label: 'Turnaround', align: 'right', sort: (r) => r.tatHours, render: (r) => `${r.tatHours} h`, exportValue: (r) => r.tatHours },
           { key: 'price', label: 'Price', align: 'right', sort: (r) => r.price, render: (r) => money(r.price), exportValue: (r) => r.price },
+          ...(PP.can('commissions.manage') ? [{ key: 'com', label: 'Commission', align: 'right', sort: (r) => Number(r.commissionValue) || 0, render: (r) => (Number(r.commissionValue) ? `<span class="badge lavender">${esc(comText(r))}</span>` : '<span class="muted small">None</span>'), exportValue: (r) => comText(r) }] : []),
           { key: 'ref', label: 'Reference range', render: (r) => (r.params.length === 1 ? `<span class="small">${refText(r.params[0])} ${esc(r.params[0].unit)}</span>` : `<span class="small">${r.params.length} parameters</span><span class="sub">${esc(r.params.map((p) => p.name).join(', '))}</span>`), exportValue: (r) => r.params.map((p) => `${p.name}: ${PP.stripHtml(refText(p))} ${p.unit}`).join('; ') },
           { key: 'st', label: 'Status', render: (r) => PP.ui.badge(r.status), exportValue: (r) => r.status },
           { key: 'act', label: '', render: (r) => `<button class="btn btn-sm btn-ghost" data-edit="${esc(r.id)}">${PP.icon('edit')} Edit</button>`, exportValue: () => '' },
@@ -1074,6 +1090,14 @@
     },
   });
 
+  /** Demo referral-commission rates per test (D-034); the admin edits them in the Test Catalogue. */
+  function labCommissionDefaults(db) {
+    (db.labTests || []).forEach((t) => {
+      if (t.commissionValue != null) return;
+      if (t.category === 'Imaging') { t.commissionType = 'fixed'; t.commissionValue = 100; } else { t.commissionType = 'percent'; t.commissionValue = 10; }
+    });
+  }
+  PP.registerSeed('lab-commission', (db) => labCommissionDefaults(db));
   PP.labReport = { html: (o) => labReportHtml(o), print: (o) => printDoc(labReportHtml(o)) };
   function labReportHtml(o) {
     const pt = PP.find.patient(o.patientId) || {};
@@ -1097,7 +1121,7 @@
       title: `Lab order ${esc(o.id)} ${PP.ui.badge(o.status, LAB_TONE[o.status])}${o.priority === 'Urgent' ? ' ' + PP.ui.badge('Urgent', 'error') : ''}`,
       crumbs: [['Lab & Diagnostics', '#/lab'], ['Lab Orders', '#/lab'], [o.id]],
       subtitle: `${patLink(pt.id)} · ${esc(pt.id)} · ordered by ${esc(PP.proName(o.professionalId))} · ${PP.fmt.stamp(o.orderedAt)}`,
-      actions: `${['Result ready', 'Delivered'].includes(o.status) ? `<button class="btn" data-print>${PP.icon('printer')} Print report</button>` : ''}${canBill && o.status !== 'Cancelled' ? `<a class="btn" href="#/billing/new?patient=${encodeURIComponent(pt.id)}">${PP.icon('receipt')} Create invoice</a>` : ''}${['Ordered', 'Sample collected'].includes(o.status) ? '<button class="btn btn-danger" data-cancel>Cancel order</button>' : ''}`,
+      actions: `${['Result ready', 'Delivered'].includes(o.status) ? `<button class="btn" data-print>${PP.icon('printer')} Print report</button>` : ''}${o.invoiceId && PP.find.invoice(o.invoiceId) ? `<a class="btn" href="#/billing/${esc(o.invoiceId)}">${PP.icon('receipt')} Invoice ${esc(o.invoiceId)}</a>` : canBill && o.status !== 'Cancelled' ? `<a class="btn" href="#/billing/new?lab=${encodeURIComponent(o.id)}">${PP.icon('receipt')} Create invoice</a>` : ''}${['Ordered', 'Sample collected'].includes(o.status) ? '<button class="btn btn-danger" data-cancel>Cancel order</button>' : ''}`,
     }) + (o.status === 'Cancelled' ? PP.ui.alert('error', `This order was cancelled. ${esc(o.cancelReason || '')}`) : `<div class="card"><div class="card-body mod-scroll-x"><div class="stepper mod-stepper">${LAB_FLOW.map((s, i) => `<div class="step ${i < step || o.status === 'Delivered' ? 'done' : ''} ${i === step && o.status !== 'Delivered' ? 'active' : ''}"><span class="num">${i < step || o.status === 'Delivered' ? '✓' : i + 1}</span>${esc(s)}</div>${i < LAB_FLOW.length - 1 ? '<div class="line"></div>' : ''}`).join('')}</div></div></div>`)
       + `<div class="grid form-split mod-split mt-4"><div class="stack" data-left></div><div class="stack" data-right></div></div>`;
     const left = $('[data-left]', el); const right = $('[data-right]', el);
