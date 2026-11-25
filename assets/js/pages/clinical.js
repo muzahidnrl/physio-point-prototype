@@ -255,7 +255,7 @@
 
   /* ======================================================= prescriptions list */
   PP.route('/prescriptions', {
-    title: 'Prescriptions', perm: 'clinical.view',
+    title: 'Prescriptions', perm: 'prescriptions.read',
     render({ el }) {
       const rows = () => PP.db.prescriptions.filter((r) => PP.inBranch(r) && PP.canSeePatient(r.patientId));
       const all = rows(); const ms = PP.monthStart(PP.today());
@@ -351,9 +351,9 @@
   }
 
   /* ======================================================== screen 14: editor */
-  PP.route('/prescriptions/new', { title: 'New Prescription', perm: 'clinical.write', render({ el, query }) { renderRx(el, null, query); } });
+  PP.route('/prescriptions/new', { title: 'New Prescription', perm: 'prescriptions.create', render({ el, query }) { renderRx(el, null, query); } });
   PP.route('/prescriptions/:id', {
-    title: (p) => `Prescription ${p.id}`, perm: 'clinical.view',
+    title: (p) => `Prescription ${p.id}`, perm: 'prescriptions.read',
     render({ el, params, query }) { const rx = PP.find.prescription(params.id); if (!rx) { el.innerHTML = notFound('Prescription', params.id, '#/prescriptions'); return; } if (PP.denyPatient(el, rx.patientId)) return; renderRx(el, rx, query); },
   });
 
@@ -579,7 +579,7 @@
 
   /* ===================================================== screen 15: print / PDF */
   PP.route('/prescriptions/:id/print', {
-    title: (p) => `Print ${p.id}`, perm: 'clinical.view',
+    title: (p) => `Print ${p.id}`, perm: 'prescriptions.read',
     render({ el, params }) {
       const rx = PP.find.prescription(params.id); if (!rx) { el.innerHTML = notFound('Prescription', params.id, '#/prescriptions'); return; }
       if (PP.denyPatient(el, rx.patientId)) return;
@@ -625,7 +625,7 @@
 
   /* ================================================ screen 16: condition templates */
   PP.route('/prescriptions/templates', {
-    title: 'Condition Templates', perm: 'clinical.view',
+    title: 'Condition Templates', perm: 'templates.read',
     render({ el }) {
       const conds = Array.from(new Set(PP.db.templates.map((t) => t.condition)));
       el.innerHTML = PP.ui.pageHead({
@@ -654,7 +654,7 @@
   });
 
   PP.route('/prescriptions/templates/:id', {
-    title: (p) => (p.id === 'new' ? 'New Template' : `Template ${p.id}`), perm: 'clinical.view',
+    title: (p) => (p.id === 'new' ? 'New Template' : `Template ${p.id}`), perm: 'templates.read',
     render({ el, params }) {
       const isNew = params.id === 'new';
       const t0 = isNew ? null : PP.find.template(params.id);

@@ -255,8 +255,8 @@
       });
     });
   }
-  PP.route('/professionals/new', { title: () => `Add ${PP.t('professional')}`, perm: 'professionals.manage', render: renderProForm });
-  PP.route('/professionals/:id/edit', { title: () => `Edit ${PP.t('professional')}`, perm: 'professionals.manage', render: renderProForm });
+  PP.route('/professionals/new', { title: () => `Add ${PP.t('professional')}`, perm: 'professionals.create', render: renderProForm });
+  PP.route('/professionals/:id/edit', { title: () => `Edit ${PP.t('professional')}`, perm: 'professionals.update', render: renderProForm });
 
   /* ----------------------------------------------------------- weekly table */
   function weekTable(p, editable) {

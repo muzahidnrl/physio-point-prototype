@@ -435,7 +435,7 @@
   PP.isMobile = (v) => /^01[3-9]\d{8}$/.test(String(v || '').replace(/[\s-]/g, ''));
 
   /* ---------------------------------------------------------------- router */
-  const routes = [];
+  const routes = []; PP._routes = routes; // exposed for the access-isolation test
   PP.route = function (pattern, def) {
     const keys = []; const re = new RegExp('^' + pattern.replace(/\//g, '\\/').replace(/:(\w+)/g, (_, k) => { keys.push(k); return '([^/]+)'; }) + '$');
     routes.push(Object.assign({ pattern, keys, re }, def));

@@ -21,11 +21,11 @@
       { label: 'Feedback', href: '#/feedback', perm: 'feedback.view' },
     ] },
     { id: 'clinical', label: 'Prescriptions', icon: 'rx', perm: 'clinical.view', children: [
-      { label: 'Prescriptions', href: '#/prescriptions' },
+      { label: 'Prescriptions', href: '#/prescriptions', perm: 'prescriptions.read' },
       { label: 'New Clinical Visit', href: '#/visits/new', perm: 'clinical.write' },
-      { label: 'Condition Templates', href: '#/prescriptions/templates' },
+      { label: 'Condition Templates', href: '#/prescriptions/templates', perm: 'templates.read' },
       { label: 'Session Plans', href: '#/session-plans' },
-      { label: 'Exercise Library', href: '#/exercises' },
+      { label: 'Exercise Library', href: '#/exercises', perm: 'exercises.read' },
       { label: 'Dental Chart', href: '#/dental', when: () => PP.db.settings.businessType === 'dental' },
     ] },
     { id: 'lab', label: 'Lab & Diagnostics', icon: 'activity', perm: 'lab.manage', children: [
@@ -52,9 +52,9 @@
       { label: 'Availability & Leave', href: '#/professionals/availability' },
     ] },
     { id: 'reports', label: 'Reports', icon: 'chart', perm: 'reports.view', children: [
-      { label: 'Collection Report', href: '#/reports/collections' },
-      { label: 'Financial Summary', href: '#/reports/finance' },
-      { label: 'Appointment Report', href: '#/reports/appointments' },
+      { label: 'Collection Report', href: '#/reports/collections', perm: ['reports.read', 'billing.read'] },
+      { label: 'Financial Summary', href: '#/reports/finance', perm: ['reports.read', 'finance.read'] },
+      { label: 'Appointment Report', href: '#/reports/appointments', perm: ['reports.read', 'appointments.read'] },
     ] },
     { id: 'settings', label: 'Settings', icon: 'settings', perm: 'settings.manage', children: [
       { label: 'Clinic Settings', href: '#/settings' },

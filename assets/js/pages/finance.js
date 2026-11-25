@@ -704,6 +704,7 @@
     title: (p) => `Invoice ${p.id}`,
     perm: 'billing.view',
     render({ el, params }) {
+      { const invB = PP.find.invoice(params.id); if (invB && PP.denyBranch(el, invB, 'invoice')) return; }
       ensure();
       const inv = PP.find.invoice(params.id);
       if (!inv) { el.innerHTML = `<div class="card">${PP.ui.empty({ icon: 'receipt', title: 'Invoice not found', text: `There is no invoice ${esc(params.id)}.`, action: '<a class="btn" href="#/billing/invoices">Back to invoices</a>' })}</div>`; return; }
@@ -1205,7 +1206,7 @@
 
   /* ============================================================== COMMISSIONS */
   PP.route('/commissions', {
-    title: () => (PP.can('commissions.manage') ? 'Commissions' : 'My Commission'),
+    title: () => (PP.can('commissions.manage') ? 'Commissions' : 'My Commission'), perm: 'commissions.read',
     render({ el, query }) {
       ensure();
       if (PP.can('commissions.manage')) return renderCommissionAdmin(el, query);
@@ -1553,7 +1554,7 @@
 
   PP.route('/reports/collections', {
     title: 'Collection Report',
-    perm: 'reports.view',
+    perm: ['reports.read', 'billing.read'],
     render({ el, query }) {
       ensure();
       const st = reportState(query); st.tab = tabFrom(query, ['daily', 'monthly', 'service', 'method'], 'daily');
@@ -1642,7 +1643,7 @@
 
   PP.route('/reports/finance', {
     title: 'Financial Summary',
-    perm: 'reports.view',
+    perm: ['reports.read', 'finance.read'],
     render({ el }) {
       ensure();
       const nowKey = PP.monthKey(PP.today());
@@ -1717,7 +1718,7 @@
 
   PP.route('/reports/appointments', {
     title: 'Appointment Report',
-    perm: 'reports.view',
+    perm: ['reports.read', 'appointments.read'],
     render({ el, query }) {
       ensure();
       const st = reportState(query);

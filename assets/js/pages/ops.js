@@ -934,7 +934,7 @@
     }
   }
   PP.route('/exercises', {
-    title: 'Exercise Library', perm: 'clinical.view',
+    title: 'Exercise Library', perm: 'exercises.read',
     render({ el, query }) {
       ensure();
       const st = { area: '', q: '', status: 'live' };
@@ -996,7 +996,7 @@
     });
   }
   PP.route('/exercises/:id', {
-    title: (p) => (p.id === 'new' ? 'New Exercise' : 'Exercise'), perm: 'clinical.view',
+    title: (p) => (p.id === 'new' ? 'New Exercise' : 'Exercise'), perm: 'exercises.read',
     render({ el, params }) {
       ensure();
       const isNew = params.id === 'new';

@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta name="robots" content="noindex, nofollow">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Access isolation audit (prototype)</title>
+  <link rel="stylesheet" href="../assets/css/tokens.css">
+  <link rel="stylesheet" href="../assets/css/components.css">
+  <style>
+    body { font-family: var(--pp-font); padding: 20px; background: #f4f8f9; color: #1f2a2e; }
+    h1 { font-size: 22px; } .ok { color: #0a6b4f; font-weight: 700; } .bad { color: #b42318; font-weight: 700; }
+    table { border-collapse: collapse; font-size: 12px; background: #fff; } th, td { border: 1px solid #d6e0e4; padding: 4px 6px; text-align: center; }
+    th.r, td.r { text-align: left; white-space: nowrap; } .y { background: #e6f6f3; } .n { color: #b9c3cb; }
+    .wrap { overflow: auto; max-width: 100%; } pre { background: #fff; padding: 10px; border: 1px solid #d6e0e4; white-space: pre-wrap; }
+  </style>
+</head>
+<body>
+  <h1>Access isolation audit</h1>
+  <p>Signs in as every active demo user in turn (in memory — nothing is saved), opens every page and tries to open records outside the user's branch and data scope (D-036). Uses the same data as the clinic workspace in this browser.</p>
+  <div id="summary">Running…</div>
+  <h2>Pages each role can open</h2><div class="wrap" id="matrix"></div>
+  <h2>Details</h2><pre id="log"></pre>
+
+  <script src="../assets/js/core.js"></script>
+  <script src="../assets/js/rbac.js"></script>
+  <script src="../assets/js/ui.js"></script>
+  <script src="../assets/js/data.js"></script>
+  <script src="../assets/js/exercise-anim.js"></script>
+  <script src="../assets/js/exercises-more.js"></script>
+  <script src="../assets/js/pages/dashboard.js"></script>
+  <script src="../assets/js/pages/appointments.js"></script>
+  <script src="../assets/js/pages/patients.js"></script>
+  <script src="../assets/js/pages/clinical.js"></script>
+  <script src="../assets/js/pages/finance.js"></script>
+  <script src="../assets/js/pages/admin.js"></script>
+  <script src="../assets/js/pages/ops.js"></script>
+  <script src="../assets/js/pages/modules.js"></script>
+  <script src="../assets/js/medicines-bd.js"></script>
+  <script src="../assets/js/pages/rx-pad.js"></script>
+  <script>
+  (async function () {
+    PP.load(); if (PP.applySeedExtensions) PP.applySeedExtensions();
+    PP.save = function () {}; // read-only audit: never write to the browser store
+    const log = []; const leaks = []; const errors = [];
+    const el = document.createElement('div');
+    const routes = PP._routes.filter((r) => !r.public);
+    const statics = routes.filter((r) => !r.keys.length);
+    const route = (p) => routes.find((r) => r.pattern === p);
+    const blocked = (h) => /do not have access|Not your|Not in your branches|not found|no access/i.test(h);
+    const users = PP.db.users.filter((u) => u.status === 'Active');
+    const grid = {};
+    const orig = PP.db.session.userId;
+    const tryRec = async (u, pattern, id, label) => {
+      const r = route(pattern); if (!r || (r.perm && !PP.can(r.perm))) return;
+      el.innerHTML = '';
+      try { await r.render({ el, params: { id }, query: {} }); } catch (e) { errors.push(`${u.name} ${pattern} ${e.message}`); return; }
+      if (!blocked(el.innerHTML)) leaks.push(`${PP.userRoleNames(u)} (${u.name}) opened ${label} ${id}`);
+    };
+    for (const u of users) {
+      PP.db.session.userId = u.id; PP.db.session.branchId = 'ALL';
+      const key = `${PP.userRoleNames(u)} · ${u.name}`; grid[key] = {};
+      for (const r of statics) {
+        if (r.perm && !PP.can(r.perm)) continue;
+        try { el.innerHTML = ''; await r.render({ el, params: {}, query: {} }); grid[key][r.pattern] = 1; } catch (e) { errors.push(`${u.name} ${r.pattern}: ${e.message}`); }
+      }
+      const outInv = PP.db.invoices.find((i) => !PP.canSeeBranchOf(i)); if (outInv) await tryRec(u, '/billing/:id', outInv.id, 'another branch\'s invoice');
+      const outApt = PP.db.appointments.find((a) => !PP.canSeeBranchOf(a) || (PP.ownProId() && a.professionalId !== PP.ownProId())); if (outApt) await tryRec(u, '/appointments/:id', outApt.id, 'an out-of-scope appointment');
+      const outPat = PP.db.patients.find((p) => !p.mergedInto && !PP.canSeePatient(p.id)); if (outPat) await tryRec(u, '/patients/:id', outPat.id, 'an out-of-scope patient');
+      const outRx = PP.db.prescriptions.find((x) => !PP.canSeePatient(x.patientId)); if (outRx) await tryRec(u, '/prescriptions/:id', outRx.id, 'an out-of-scope prescription');
+      const outVis = PP.db.visits.find((x) => !PP.canSeePatient(x.patientId)); if (outVis) await tryRec(u, '/visits/:id', outVis.id, 'an out-of-scope visit');
+      const outLab = (PP.db.labOrders || []).find((o) => !PP.canSeeBranchOf(o)); if (outLab) await tryRec(u, '/lab/orders/:id', outLab.id, 'another branch\'s lab order');
+      // rules 13/14: front office and finance roles never read clinical records
+      if (/Receptionist|Front Desk|Cashier|Accountant|Finance Manager/.test(PP.userRoleNames(u)) && (PP.can('clinical.read') || PP.can('prescriptions.read'))) leaks.push(`${PP.userRoleNames(u)} can read clinical records`);
+      log.push(`${key}: ${Object.keys(grid[key]).length} pages · patients scope ${PP.scopeOf('patients')} · appointments scope ${PP.scopeOf('appointments')} · branches ${PP.isOrgWide() ? 'all' : PP.allowedBranchIds().join(', ') || 'none'}`);
+    }
+    PP.db.session.userId = orig;
+    const pats = statics.map((r) => r.pattern);
+    document.getElementById('matrix').innerHTML = `<table><thead><tr><th class="r">Role · user</th>${pats.map((p) => `<th title="${p}">${p.replace(/^\//, '').replace(/\//g, '/<br>')}</th>`).join('')}</tr></thead><tbody>${Object.entries(grid).map(([k, v]) => `<tr><td class="r">${PP.esc(k)}</td>${pats.map((p) => (v[p] ? '<td class="y">✓</td>' : '<td class="n">·</td>')).join('')}</tr>`).join('')}</tbody></table>`;
+    document.getElementById('summary').innerHTML = leaks.length || errors.length
+      ? `<p class="bad">${leaks.length} leak(s), ${errors.length} error(s).</p><pre>${PP.esc(leaks.concat(errors).join('\n'))}</pre>`
+      : `<p class="ok">PASS — ${users.length} users × ${statics.length} pages, plus out-of-branch and out-of-scope record checks: no leaks, no errors.</p>`;
+    document.getElementById('log').textContent = log.join('\n');
+    window.AUDIT = { leaks, errors, grid };
+  })();
+  </script>
+</body>
+</html>

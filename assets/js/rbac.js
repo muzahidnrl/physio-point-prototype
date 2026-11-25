@@ -117,6 +117,7 @@
   const CLINICAL_WRITE = { 'clinical.create': 'canRecordClinical', 'clinical.update': 'canRecordClinical', 'prescriptions.create': 'canRecordClinical', 'prescriptions.update': 'canRecordClinical', 'prescriptions.approve': 'prescribe' };
   const raw = (u, code) => rolesOf(u).some((r) => r.permissions.includes('*') || r.permissions.includes(code));
   PP.can = function (perm) {
+    if (Array.isArray(perm)) return perm.every((p) => PP.can(p)); // a page may need several permissions
     const u = PP.currentUser(); if (!u) return false;
     if (perm === 'appointments.view_all') return ['branch', 'org'].includes(PP.scopeOf('appointments'));
     if (perm === 'patients.view_all') return ['branch', 'org'].includes(PP.scopeOf('patients'));
@@ -152,6 +153,13 @@
     const b = PP.activeBranchId(); if (!rec || !rec.branchId) return true;
     if (b !== 'ALL') return rec.branchId === b;
     return PP.isOrgWide() || PP.allowedBranchIds().includes(rec.branchId);
+  };
+  /** Record-level branch isolation for detail pages (invoices, appointments, lab orders…). */
+  PP.canSeeBranchOf = (rec) => !rec || !rec.branchId || PP.isOrgWide() || PP.allowedBranchIds().includes(rec.branchId);
+  PP.denyBranch = function (el, rec, what) {
+    if (PP.canSeeBranchOf(rec)) return false;
+    el.innerHTML = '<div class="card">' + PP.ui.empty({ icon: 'lock', title: 'Not in your branches', text: `This ${what || 'record'} belongs to ${PP.branchName(rec.branchId)}, which is not one of your branches.`, action: '<a class="btn" href="#/dashboard">Back</a>' }) + '</div>';
+    return true;
   };
   PP.ownProId = (kind) => {
     const s = PP.scopeOf(kind === 'patients' ? 'patients' : 'appointments');

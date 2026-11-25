@@ -1114,6 +1114,7 @@
   function renderLabOrder({ params, el }) {
     ensure();
     const o = byId('labOrders', params.id);
+    if (o && PP.denyBranch(el, o, 'lab order')) return;
     if (!o) { el.innerHTML = `<div class="card">${PP.ui.empty({ icon: 'alert', title: 'Lab order not found', text: `There is no lab order <code>${esc(params.id)}</code>.`, action: '<a class="btn btn-primary" href="#/lab">Back to lab orders</a>' })}</div>`; return; }
     const pt = PP.find.patient(o.patientId) || { name: '—', id: o.patientId };
     const step = LAB_FLOW.indexOf(o.status);

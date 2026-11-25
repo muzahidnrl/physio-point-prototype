@@ -336,6 +336,7 @@
     render({ el, params }) {
       if (params.id.startsWith('REQ')) return renderRequest(el, PP.find.request(params.id));
       const a = PP.find.appointment(params.id);
+      if (a && PP.denyBranch(el, a, 'appointment')) return;
       if (a && ownPro() && a.professionalId !== ownPro()) { el.innerHTML = PP.ui.empty({ icon: 'lock', title: 'Not your appointment', text: `This appointment belongs to another ${PP.t('professional').toLowerCase()}.`, action: '<a class="btn" href="#/appointments">My appointments</a>' }); return; }
       return renderAppointment(el, a);
     },

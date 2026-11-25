@@ -16,11 +16,23 @@
   };
   const dueFor = (from, to) => PP.sum(PP.db.invoices.filter((i) => PP.inBranch(i) && i.date >= from && i.date <= to), (i) => PP.bill.totals(i).due);
 
+  /** Roles without appointments (cashier, inventory, HR…) get their own start card instead of clinic-wide numbers. */
+  function roleHome() {
+    const links = [];
+    (PP.NAV || []).forEach((it) => {
+      const vis = (x) => (!x.perm || PP.can(x.perm)) && !(x.hideIf && PP.can(x.hideIf)) && (!x.when || x.when());
+      if (!vis(it) || it.id === 'dashboard') return;
+      const lbl = (x) => (typeof x.label === 'function' ? x.label() : x.label);
+      if (it.href) links.push([it.href, lbl(it), it.icon]);
+      (it.children || []).filter(vis).forEach((c) => links.push([c.href, lbl(c), it.icon]));
+    });
+    return PP.ui.card({ title: 'Your work', body: `<div class="small muted mb-2">Only the parts of the software your role ${esc(PP.userRoleNames(PP.currentUser()))} needs.</div><div class="quick">${links.slice(0, 12).map(([h, l, ic]) => `<a class="quick-tile" href="${h}">${PP.icon(ic || 'arrowR')}<span>${esc(l)}</span></a>`).join('')}</div>` });
+  }
   PP.route('/dashboard', {
     title: 'Dashboard', perm: 'dashboard.view',
     render({ el }) {
       const u = PP.currentUser(); const T = PP.today(); const Y = PP.addDays(T, -1);
-      const own = !!PP.ownProId();
+      const own = !!(u.professionalId && PP.ownProId()); // professional-style cards only for users linked to a professional
       const mine = (a) => !own || a.professionalId === u.professionalId;
       const todays = PP.db.appointments.filter((a) => a.date === T && PP.inBranch(a) && mine(a) && !['Cancelled', 'Rescheduled'].includes(a.status)).sort((a, b) => a.start.localeCompare(b.start));
       const ydays = PP.db.appointments.filter((a) => a.date === Y && PP.inBranch(a) && mine(a) && !['Cancelled', 'Rescheduled'].includes(a.status));
@@ -36,26 +48,28 @@
         PP.ui.kpi({ label: 'Sessions completed today', value: todays.filter((a) => a.status === 'Completed').length, hint: `${todays.filter((a) => ['Confirmed', 'Scheduled', 'Checked in'].includes(a.status)).length} still to come`, tone: 'warning', icon: 'checkCircle' }),
         PP.ui.kpi({ label: 'My commission balance', value: PP.fmt.money(PP.commission.balance(u.professionalId)), hint: '<a href="#/commissions">View statement →</a>', tone: 'lavender', icon: 'coins' }),
       ] : [
-        PP.ui.kpi({ label: "Today's Appointments", value: todays.length, hint: pctChange(todays.length, ydays.length), tone: 'positive', icon: 'calendar' }),
-        PP.ui.kpi({ label: 'Total Patients', value: patients.length, hint: `${PP.icon('arrowUp', 'style="width:12px;height:12px"')} ${newThisMonth} new this month`, tone: 'info', icon: 'users' }),
-        PP.can('billing.view') ? PP.ui.kpi({ label: "Today's Collection", value: PP.fmt.money(cT.total), hint: pctChange(cT.total, cY.total), tone: 'warning', icon: 'coins' }) : PP.ui.kpi({ label: 'Checked in now', value: todays.filter((a) => a.status === 'Checked in').length, hint: 'Waiting to be seen', tone: 'warning', icon: 'clock' }),
-        PP.ui.kpi({ label: 'Pending Requests', value: pending.length, hint: PP.can('requests.review') ? '<a href="#/appointments/requests">View & Confirm →</a>' : 'Awaiting review', tone: 'lavender', icon: 'clock' }),
+        !PP.can('appointments.view') ? '' : PP.ui.kpi({ label: "Today's Appointments", value: todays.length, hint: pctChange(todays.length, ydays.length), tone: 'positive', icon: 'calendar' }),
+        !PP.can('patients.view') ? '' : PP.ui.kpi({ label: 'Total Patients', value: patients.length, hint: `${PP.icon('arrowUp', 'style="width:12px;height:12px"')} ${newThisMonth} new this month`, tone: 'info', icon: 'users' }),
+        PP.can('billing.view') ? PP.ui.kpi({ label: "Today's Collection", value: PP.fmt.money(cT.total), hint: pctChange(cT.total, cY.total), tone: 'warning', icon: 'coins' }) : !PP.can('appointments.view') ? '' : PP.ui.kpi({ label: 'Checked in now', value: todays.filter((a) => a.status === 'Checked in').length, hint: 'Waiting to be seen', tone: 'warning', icon: 'clock' }),
+        !PP.can('requests.review') ? '' : PP.ui.kpi({ label: 'Pending Requests', value: pending.length, hint: PP.can('requests.review') ? '<a href="#/appointments/requests">View & Confirm →</a>' : 'Awaiting review', tone: 'lavender', icon: 'clock' }),
       ];
 
       el.innerHTML = `${PP.ui.pageHead({ title: `Welcome, ${esc(first)} 👋`, subtitle: `Here's what's happening at ${esc(PP.db.settings.clinicName)} today${PP.activeBranchId() !== 'ALL' ? ` · ${esc(PP.branchName(PP.activeBranchId()))}` : ''}.`,
         actions: `<span class="date-chip">${PP.icon('calendar')} Today, ${PP.fmt.date(T)}</span>${PP.can('appointments.manage') ? `<a class="btn btn-primary" href="#/appointments/new">${PP.icon('plus')} New appointment</a>` : ''}` })}
-        <div class="grid grid-4">${kpis.join('')}</div>
-        <div class="grid dash-row mt-4">
+        ${kpis.filter(Boolean).length ? `<div class="grid grid-4">${kpis.join('')}</div>` : ''}
+        ${PP.can('appointments.view') ? '' : roleHome()}
+        <div class="grid dash-row mt-4" ${PP.can('appointments.view') ? '' : 'hidden style="display:none"'}>
           ${PP.ui.card({ title: 'Appointment Overview', actions: '<span class="small muted">Last 7 days</span>', body: '<div data-chart></div>' })}
           ${PP.ui.card({ title: "Today's Schedule", actions: '<a class="small" href="#/appointments">View All →</a>', flush: true, body: '<ul class="list sched" data-sched></ul>' })}
         </div>
         <div class="grid dash-row-3 mt-4">
-          ${PP.can('requests.review') ? PP.ui.card({ title: `Pending Online Requests (${pending.length})`, actions: '<a class="small" href="#/appointments/requests">View All →</a>', flush: true, body: '<ul class="list" data-reqs></ul>' }) : PP.ui.card({ title: 'Up next', flush: true, body: '<ul class="list" data-next></ul>' })}
-          ${PP.can('billing.view') ? PP.ui.card({ title: 'Collection Summary', actions: PP.ui.segmented('period', [['daily', 'Daily'], ['monthly', 'Monthly']], 'daily'), body: '<div data-coll></div>' }) : PP.ui.card({ title: 'Patients to follow up', flush: true, body: '<ul class="list" data-follow></ul>' })}
+          ${PP.can('requests.review') ? PP.ui.card({ title: `Pending Online Requests (${pending.length})`, actions: '<a class="small" href="#/appointments/requests">View All →</a>', flush: true, body: '<ul class="list" data-reqs></ul>' }) : !PP.can('appointments.view') ? '' : PP.ui.card({ title: 'Up next', flush: true, body: '<ul class="list" data-next></ul>' })}
+          ${PP.can('billing.view') ? PP.ui.card({ title: 'Collection Summary', actions: PP.ui.segmented('period', [['daily', 'Daily'], ['monthly', 'Monthly']], 'daily'), body: '<div data-coll></div>' }) : !PP.can('clinical.view') ? '' : PP.ui.card({ title: 'Patients to follow up', flush: true, body: '<ul class="list" data-follow></ul>' })}
           ${PP.ui.card({ title: `${PP.icon('zap', 'style="width:18px;height:18px;vertical-align:-3px;color:var(--pp-action)"')} Quick Actions`, body: '<div class="quick" data-quick></div>' })}
         </div>`;
 
       // Appointment overview chart (completed vs scheduled, last 7 days)
+      if (PP.can('appointments.view')) {
       const days = Array.from({ length: 7 }, (_, i) => PP.addDays(T, i - 6));
       const by = (d, sts) => PP.db.appointments.filter((a) => a.date === d && PP.inBranch(a) && mine(a) && sts.includes(a.status)).length;
       PP.chart.area(PP.$('[data-chart]', el), { labels: days.map((d) => PP.DAYS[PP.dow(d)].slice(0, 3)), series: [
@@ -63,11 +77,14 @@
         { name: 'Scheduled', values: days.map((d) => by(d, ['Completed', 'Confirmed', 'Scheduled', 'Checked in', 'In session', 'No-show'])), color: '#5cc8bd' },
       ] });
 
+      }
       // Today's schedule
+      if (PP.can('appointments.view')) {
       const sched = PP.$('[data-sched]', el);
       sched.innerHTML = todays.length ? todays.slice(0, 7).map((a) => `<li><span class="time-chip">${PP.fmt.time(a.start)}</span><a class="grow" href="#/appointments/${a.id}"><b>${esc(PP.patientName(a.patientId))}</b><span class="sub">${esc(PP.serviceName(a.serviceId))}</span></a><span class="small muted hide-sm">${PP.icon('user', 'style="width:14px;height:14px;vertical-align:-2px"')} ${esc(PP.proShort(a.professionalId))}</span>${PP.ui.badge(a.status)}</li>`).join('') + (todays.length > 7 ? `<li class="small"><a href="#/appointments">+ ${todays.length - 7} more today</a></li>` : '')
         : `<li style="display:block">${PP.ui.empty({ icon: 'calendar', title: 'No appointments today', text: 'Enjoy the quiet, or add a walk-in.', action: PP.can('appointments.manage') ? '<a class="btn btn-sm btn-primary" href="#/appointments/new">Add appointment</a>' : '' })}</li>`;
 
+      }
       // Pending online requests with inline confirm/reject
       const reqBox = PP.$('[data-reqs]', el);
       const drawReqs = () => {
