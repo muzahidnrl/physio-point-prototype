@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta name="robots" content="noindex, nofollow">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Physio Point · Super Admin (prototype)</title>
+  <link rel="stylesheet" href="../assets/css/tokens.css">
+  <link rel="stylesheet" href="../assets/css/components.css">
+  <link rel="stylesheet" href="../assets/css/shell.css">
+  <link rel="stylesheet" href="../assets/css/pages.css">
+  <link rel="stylesheet" href="assets/sa.css">
+  <link rel="stylesheet" href="assets/sa-onboarding.css">
+  <link rel="stylesheet" href="assets/sa-entitlements.css">
+  <link rel="stylesheet" href="assets/sa-ops.css">
+  <link rel="stylesheet" href="assets/sa-business.css">
+</head>
+<body>
+  <div id="app"></div>
+  <noscript>This prototype needs JavaScript.</noscript>
+
+  <!-- Separate store from the clinic workspace: set BEFORE core.js loads. -->
+  <script>window.PP_STORE_KEY = 'pp-control-plane-v1';</script>
+  <!-- Order matters: core → ui → sa-core → seed → pages → shell (boots last). The customer data.js is NOT loaded. -->
+  <script src="../assets/js/core.js"></script>
+  <script src="../assets/js/ui.js"></script>
+  <script src="assets/sa-core.js"></script>
+  <script src="assets/sa-data.js"></script>
+  <script src="assets/sa-pages-customers.js"></script>
+  <script src="assets/sa-pages-onboarding.js"></script>
+  <script src="assets/sa-pages-entitlements.js"></script>
+  <script src="assets/sa-pages-ops.js"></script>
+  <script src="assets/sa-pages-business.js"></script>
+  <script src="assets/sa-shell.js"></script>
+  <script>PP.boot();</script>
+</body>
+</html>

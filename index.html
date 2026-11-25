@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta name="robots" content="noindex, nofollow">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Physio Point · HTML prototype hub</title>
+  <link rel="stylesheet" href="assets/css/tokens.css">
+  <link rel="stylesheet" href="assets/css/components.css">
+  <link rel="stylesheet" href="assets/css/shell.css">
+  <link rel="stylesheet" href="assets/css/pages.css">
+</head>
+<body>
+  <div class="hub" id="hub"></div>
+  <script src="assets/js/core.js"></script>
+  <script src="assets/js/ui.js"></script>
+  <script src="assets/js/data.js"></script>
+  <script>
+  (function () {
+    'use strict';
+    const esc = PP.esc; PP.load(); PP.applyBranding();
+    const app = (r) => `customer-web/app.html#${r}`;
+    const screens = [
+      ['01', 'Public Appointment Request', 'customer-web/booking.html', 'Public patient'],
+      ['02', 'Request Confirmation', 'customer-web/booking.html', 'Public patient (shown after submitting)'],
+      ['03', 'Secure Login', 'customer-web/login.html', 'Staff · includes two-step code and password reset'],
+      ['04', 'Admin Dashboard', app('/dashboard'), 'Admin'],
+      ['05', 'Appointment Calendar', app('/appointments/calendar'), 'Admin · day and week views'],
+      ['06', 'All Appointments', app('/appointments'), 'Admin'],
+      ['07', 'Create / Edit Appointment', app('/appointments/new'), 'Admin · 3-step booking with conflict check'],
+      ['08', 'Appointment Details (review & approve)', app('/appointments/requests'), 'Admin · open any pending request'],
+      ['09', 'Therapist Availability', app('/professionals/availability'), 'Admin · schedules, breaks, leave, closures'],
+      ['10', 'Patient Directory', app('/patients'), 'Admin, professional'],
+      ['11', 'Patient Registration', app('/patients/new'), 'Admin · duplicate detection'],
+      ['12', 'Patient Profile', app('/patients/PAT-000342'), 'Admin, professional'],
+      ['13', 'Clinical Visit & Assessment', app('/visits/new?patient=PAT-000342'), 'Professional'],
+      ['14', 'Prescription Editor', app('/prescriptions/new?patient=PAT-000342'), 'Professional'],
+      ['15', 'Prescription Print / PDF', app('/prescriptions'), 'Professional · open a prescription, then Print'],
+      ['16', 'Condition Templates', app('/prescriptions/templates'), 'Professional, admin'],
+      ['17', 'Session Plan & Progress', app('/session-plans'), 'Professional'],
+      ['18', 'Services & Pricing', app('/services'), 'Admin · includes professional fees'],
+      ['19', 'Invoice & Payment Entry', app('/billing/new'), 'Admin, front desk'],
+      ['20', 'Invoices & Outstanding Dues', app('/billing/invoices'), 'Admin, accountant'],
+      ['21', 'Collection Reports', app('/reports/collections'), 'Admin, accountant'],
+      ['22', 'Therapist & User Accounts', app('/settings/users'), 'Admin · users, roles, permission matrix'],
+      ['23', 'Clinic & System Settings', app('/settings'), 'Admin · branding, terminology, backups, licence'],
+    ];
+    const added = [
+      ['Income & Expenses', app('/finance'), 'D-023'], ['Daily Cash Closing', app('/finance/closing'), 'D-023'], ['Commissions', app('/commissions'), 'D-025, D-026'],
+      ['Financial Summary', app('/reports/finance'), 'D-023'], ['Appointment Report', app('/reports/appointments'), 'MP §8'], ['Professional directory & profiles', app('/professionals'), 'MP §5'],
+      ['Notification settings', app('/settings/notifications'), 'MP §9–11'], ['Audit log', app('/settings/audit'), 'D-022'],
+      ['Queue & check-in desk', app('/queue'), 'MP §8 · FR-QUE-01'], ['Waiting-room display', app('/queue/display'), 'D-022'], ['Packages & memberships', app('/packages'), 'MP §8 · D-026'],
+      ['Exercise library', app('/exercises'), 'MP §8'], ['Referrals', app('/referrals'), 'MP §8'], ['Patient feedback', app('/feedback'), 'MP §8'],
+      ['Inventory & suppliers', app('/inventory'), 'MP §8'], ['Payroll', app('/payroll'), 'MP §8'], ['Lab & diagnostics', app('/lab'), 'D-022'],
+      ['Dental chart', app('/dental'), 'D-022'], ['Help & support', app('/support'), 'D-022'],
+    ];
+    const s = PP.db.settings;
+    PP.$('#hub').innerHTML = `
+      <section class="hub-hero">
+        <div><div class="row" style="gap:12px"><div class="brand" style="padding:0"><div class="logo">${PP.logoSvg}</div></div><span class="badge" style="background:rgba(255,255,255,.14);color:#fff">Interactive HTML prototype · v0.2</span></div>
+          <h1 class="mt-3">Physio Point</h1>
+          <p>Clickable prototype of the clinic workspace, the public booking page, staff sign-in, the vendor Super Admin console, and the patient and professional mobile apps. Built from the original UI/UX Design Blueprint v1.0 and the approved product decisions. All data is fictional and lives only in this browser.</p></div>
+        <div class="stack"><a class="btn" href="customer-web/login.html" style="background:#fff">${PP.icon('lock')} Sign in</a><a class="btn btn-primary" href="${app('/dashboard')}">${PP.icon('home')} Open clinic workspace</a></div>
+      </section>
+      <div class="hub-cards">
+        <a class="hub-card" href="${app('/dashboard')}"><span class="ic">${PP.icon('home')}</span><b>Clinic workspace</b><span class="muted small">Dashboard, appointments, patients, clinical, billing, finance, reports, settings.</span></a>
+        <a class="hub-card" href="customer-web/booking.html"><span class="ic">${PP.icon('globe')}</span><b>Public booking page</b><span class="muted small">Patients request a visit without logging in. The request appears in the workspace as Pending.</span></a>
+        <a class="hub-card" href="customer-web/login.html"><span class="ic">${PP.icon('lock')}</span><b>Staff sign-in</b><span class="muted small">Demo accounts for each role, two-step code and password reset.</span></a>
+        <a class="hub-card" href="super-admin/login.html"><span class="ic">${PP.icon('shield')}</span><b>Super Admin console (vendor)</b><span class="muted small">Customer onboarding, plans, entitlements, licences, domains, releases, fleet, billing, support, demo sandboxes.</span></a>
+        <a class="hub-card" href="patient-app/index.html"><span class="ic">${PP.icon('phone')}</span><b>Patient app</b><span class="muted small">Book requests, prescriptions, exercises, packages, invoices. Scope pending (PD-010).</span></a>
+        <a class="hub-card" href="professional-app/index.html"><span class="ic">${PP.icon('stethoscope')}</span><b>Professional app</b><span class="muted small">Today's schedule, quick notes, prescriptions, leave, commission. Scope pending (PD-011).</span></a>
+      </div>
+
+      <section class="card mt-5"><div class="card-head"><h2>Try these journeys</h2></div><div class="card-body"><ol class="stack" style="margin:0;padding-left:20px">
+        <li><b>Online request → confirmation:</b> submit a request on the <a href="customer-web/booking.html">public page</a>, then confirm it in <a href="${app('/appointments/requests')}">Online Requests</a>. Try a slot that is already taken to see the conflict check.</li>
+        <li><b>Visit → prescription → print:</b> from a <a href="${app('/patients/PAT-000342')}">patient profile</a>, record a clinical visit, issue a prescription from a template, then print it.</li>
+        <li><b>Invoice → partial payment → commission:</b> create an <a href="${app('/billing/new')}">invoice</a> for BDT 1,000, collect BDT 500, then another BDT 500. <a href="${app('/commissions')}">Commissions</a> shows BDT 100 + BDT 100 at 20% (D-025).</li>
+        <li><b>Configurability:</b> in the top bar, switch <i>Demo business type</i> to Dental clinic — "Therapists" become "Dentists" everywhere. Switch <i>View as</i> to a professional or accountant to see role-based menus.</li>
+        <li><b>Vendor control:</b> in the <a href="super-admin/app.html">Super Admin console</a>, onboard a customer with the 14-step wizard, change entitlements and roll them back.</li>
+        <li><b>Mobile apps:</b> book from the <a href="patient-app/index.html">patient app</a> and see the request arrive in the workspace; record a quick note in the <a href="professional-app/index.html">professional app</a>.</li>
+        <li><b>White label:</b> in <a href="${app('/settings?tab=branding')}">Settings → Branding</a>, change the colours and logo.</li>
+      </ol></div></section>
+
+      <section class="card mt-5"><div class="card-head"><h2>Original screens (Design Blueprint v1.0)</h2><span class="small muted">23 screens</span></div>
+        <div class="card-body flush"><div class="table-wrap"><table class="table"><thead><tr><th>#</th><th>Screen</th><th>Who uses it</th><th></th></tr></thead><tbody>
+        ${screens.map(([n, t, h, w]) => `<tr><td class="mono">${n}</td><td><b>${esc(t)}</b></td><td class="small muted">${esc(w)}</td><td class="right"><a class="btn btn-sm" href="${h}">Open ${PP.icon('arrowR')}</a></td></tr>`).join('')}
+        </tbody></table></div></div></section>
+
+      <section class="card mt-5"><div class="card-head"><h2>Added from approved decisions</h2></div>
+        <div class="card-body flush"><div class="table-wrap"><table class="table"><tbody>
+        ${added.map(([t, h, d]) => `<tr><td><b>${esc(t)}</b></td><td class="small muted">${esc(d)}</td><td class="right"><a class="btn btn-sm" href="${h}">Open ${PP.icon('arrowR')}</a></td></tr>`).join('')}
+        </tbody></table></div></div></section>
+
+      <div class="row between mt-5"><span class="small muted">Prototype for ${esc(s.clinicName)} · fictional data · not connected to any database (D-006)</span><button class="btn" id="reset">${PP.icon('refresh')} Reset demo data</button></div>`;
+    PP.$('#reset').addEventListener('click', async () => { const ok = await PP.ui.confirm({ title: 'Reset demo data?', message: 'All changes made in this prototype will be replaced with the original sample data.', confirmLabel: 'Reset', danger: true }); if (ok) { PP.resetData(); PP.ui.toast('Demo data reset'); } });
+  })();
+  </script>
+</body>
+</html>

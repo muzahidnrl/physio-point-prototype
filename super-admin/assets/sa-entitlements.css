@@ -1,0 +1,43 @@
+/* sa-entitlements page styles (super admin): entitlements, plans, configuration catalogues. */
+.sae-toolbar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 14px; }
+.sae-toolbar .grow { flex: 1 1 220px; }
+.sae-toolbar .select { width: auto; min-width: 160px; }
+.sae-legend { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; font-size: 12px; color: var(--pp-text-2); margin-bottom: 12px; }
+.sae-legend span { display: inline-flex; gap: 6px; align-items: center; }
+.sae-unpub { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between; padding: 12px 16px; margin-bottom: 16px; border-radius: var(--pp-r-md); background: var(--pp-warning-bg); color: var(--pp-warning-fg); border: 1px solid #f3dcb5; }
+.sae-unpub b { color: #6b3f00; }
+.sae-unpub .row { gap: 8px; }
+.sae-pub-ok { display: flex; gap: 10px; align-items: center; padding: 10px 16px; margin-bottom: 16px; border-radius: var(--pp-r-md); background: var(--pp-positive-bg); color: var(--pp-positive-fg); font-size: 13px; }
+.sae-pub-ok svg { width: 18px; height: 18px; }
+.sae-gsel { height: 28px; border: 1px solid var(--pp-border-strong); border-radius: 6px; font: inherit; font-size: 12px; padding: 0 4px; background: #fff; }
+.sae-gsel.off { border-color: #e8a19b; background: #fff4f3; color: var(--pp-error-fg); font-weight: 700; }
+.sae-gsel.beta { border-color: #a9cdea; background: var(--pp-info-bg); color: var(--pp-info-fg); font-weight: 700; }
+.sae-count { font-size: 11px; color: var(--pp-text-3); white-space: nowrap; }
+.sae-need { display: block; font-size: 11px; color: var(--pp-warning-fg); }
+.sae-plans { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 14px; }
+.sae-plan { display: flex; flex-direction: column; gap: 10px; padding: 18px; border: 1px solid var(--pp-border); border-radius: var(--pp-r-lg); background: #fff; box-shadow: var(--pp-shadow-sm); }
+.sae-plan.retired { opacity: .75; border-style: dashed; }
+.sae-plan h3 { font-size: 17px; }
+.sae-plan .price { font-size: 22px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.sae-plan .price small { font-size: 12px; font-weight: 600; color: var(--pp-text-3); }
+.sae-plan dl { display: grid; grid-template-columns: 1fr auto; gap: 4px 10px; margin: 0; font-size: 12.5px; }
+.sae-plan dt { color: var(--pp-text-2); }
+.sae-plan dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; }
+.sae-plan .foot { margin-top: auto; display: flex; gap: 8px; flex-wrap: wrap; }
+.sae-checks { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 6px 14px; }
+.sae-checks .check { font-size: 13px; }
+.sae-checks .check code { font-size: 10.5px; }
+.sae-mod-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.sae-warnlist { margin: 6px 0 0; padding-left: 18px; font-size: 12.5px; }
+.sae-warnlist li { margin-bottom: 2px; }
+.sae-cap svg { width: 18px; height: 18px; }
+.sae-cap.yes { color: var(--pp-positive-fg); }
+.sae-cap.no { color: #b7c2c9; }
+.sae-hist-pick { width: 16px; height: 16px; accent-color: var(--pp-action); }
+.sae-section { margin-top: 18px; }
+.sae-section:first-child { margin-top: 0; }
+.sae-feature-list { max-height: 260px; overflow: auto; border: 1px solid var(--pp-border); border-radius: 8px; padding: 8px 12px; }
+@media (max-width: 767px) {
+  .sae-toolbar .select { min-width: 0; flex: 1 1 140px; }
+  .sae-unpub { flex-direction: column; align-items: flex-start; }
+}

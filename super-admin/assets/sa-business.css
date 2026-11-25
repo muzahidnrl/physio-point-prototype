@@ -1,0 +1,19 @@
+/* sa-business page styles (super admin): vendor billing, support inbox, announcements, remote support, staff, audit. */
+.sa-inbox-tools { padding: 12px 14px; }
+.sa-inbox-tools .select { width: auto; min-width: 0; flex: 1 1 130px; }
+.sa-ticket .badge { height: 20px; font-size: 11px; padding: 0 8px; }
+.sa-ticket-ctrl .field { margin: 0; }
+.sa-line .field { margin: 0; }
+.sa-line .btn { height: 38px; }
+.sa-perm-matrix th.center, .sa-perm-matrix td.center { text-align: center; }
+.sa-perm-matrix td.center input { width: 17px; height: 17px; accent-color: var(--pp-action); cursor: pointer; }
+.sa-perm-matrix td.center input:disabled { cursor: not-allowed; }
+.sa-perm-matrix tbody td:first-child { min-width: 220px; }
+.sa-perm-matrix thead th { position: sticky; top: 0; z-index: 1; }
+@media (max-width: 1199px) {
+  .sa-ticket-list { max-height: 360px; }
+}
+@media (max-width: 767px) {
+  .sa-ticket-ctrl { grid-template-columns: 1fr !important; }
+  .sa-line { flex-wrap: wrap; }
+}

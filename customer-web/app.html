@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta name="robots" content="noindex, nofollow">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Physio Point · Clinic workspace (prototype)</title>
+  <link rel="stylesheet" href="../assets/css/tokens.css">
+  <link rel="stylesheet" href="../assets/css/components.css">
+  <link rel="stylesheet" href="../assets/css/shell.css">
+  <link rel="stylesheet" href="../assets/css/pages.css">
+  <link rel="stylesheet" href="../assets/css/pages-clinical.css">
+  <link rel="stylesheet" href="../assets/css/pages-finance.css">
+  <link rel="stylesheet" href="../assets/css/pages-admin.css">
+  <link rel="stylesheet" href="../assets/css/pages-ops.css">
+  <link rel="stylesheet" href="../assets/css/pages-modules.css">
+</head>
+<body>
+  <div id="app"></div>
+  <noscript>This prototype needs JavaScript.</noscript>
+
+  <!-- Order matters: core → ui → data → pages → shell (boots last). -->
+  <script src="../assets/js/core.js"></script>
+  <script src="../assets/js/ui.js"></script>
+  <script src="../assets/js/data.js"></script>
+  <script src="../assets/js/pages/dashboard.js"></script>
+  <script src="../assets/js/pages/appointments.js"></script>
+  <script src="../assets/js/pages/patients.js"></script>
+  <script src="../assets/js/pages/clinical.js"></script>
+  <script src="../assets/js/pages/finance.js"></script>
+  <script src="../assets/js/pages/admin.js"></script>
+  <script src="../assets/js/pages/ops.js"></script>
+  <script src="../assets/js/pages/modules.js"></script>
+  <script src="../assets/js/shell.js"></script>
+  <script>PP.boot();</script>
+</body>
+</html>

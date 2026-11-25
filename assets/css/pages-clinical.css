@@ -1,0 +1,202 @@
+/* Patients + Clinical screens (blueprint 10–17). Page classes: .pp-patient-*, .pp-clinical, .pp-rx-*, .pp-sp-*. */
+
+/* ---------- shared layout ---------- */
+.pp-split { display: grid; grid-template-columns: minmax(0, 2fr) minmax(280px, 1fr); gap: var(--pp-s4); align-items: start; }
+.pp-split > .stack { gap: var(--pp-s4); min-width: 0; }
+.pp-h3 { font-size: var(--pp-fs-h3); margin-bottom: var(--pp-s2); }
+.pp-progress { height: 8px; border-radius: 999px; background: var(--pp-neutral-bg); overflow: hidden; }
+.pp-progress > span { display: block; height: 100%; border-radius: inherit; background: var(--pp-action); transition: width .3s; }
+.pp-prog-cell { display: grid; gap: 4px; min-width: 110px; }
+.pp-due { color: var(--pp-error-fg); }
+
+/* ---------- patient directory ---------- */
+.pp-pid { font-weight: 600; color: var(--pp-primary); }
+.pp-dup-chip { display: inline-flex; align-items: center; gap: 4px; margin-top: 2px; padding: 1px 8px; border-radius: 999px; background: var(--pp-lavender-bg); color: var(--pp-lavender-fg); font-size: 11.5px; font-weight: 600; }
+.pp-dup-chip svg { width: 12px; height: 12px; }
+.pp-allergy-dot { display: inline-grid; place-items: center; width: 16px; height: 16px; border-radius: 50%; background: var(--pp-error-fg); color: #fff; font-size: 11px; font-weight: 800; vertical-align: 1px; cursor: help; }
+
+/* ---------- registration ---------- */
+.pp-pid-preview { font-size: 22px; font-weight: 800; color: var(--pp-primary); letter-spacing: .02em; }
+.pp-dup { border-color: #f3d4a4; background: var(--pp-warning-bg); overflow: hidden; }
+.pp-dup-head { display: flex; gap: 10px; padding: 14px 16px; color: var(--pp-warning-fg); }
+.pp-dup-head svg { width: 20px; height: 20px; flex: none; margin-top: 1px; }
+.pp-dup-list { background: #fff; border-top: 1px solid #f3d4a4; border-bottom: 1px solid #f3d4a4; }
+.pp-dup-list li { flex-wrap: wrap; padding: 10px 16px; }
+.pp-dup-list .grow { flex: 1 1 200px; min-width: 0; }
+.pp-dup-foot { padding: 10px 16px; }
+
+/* ---------- profile header ---------- */
+.pp-patient-head { padding: 20px; }
+.pp-ph-main { display: flex; gap: 16px; align-items: center; flex-wrap: wrap; }
+.pp-ph-id { flex: 1 1 260px; min-width: 0; }
+.pp-ph-id h2 { font-size: 22px; }
+.pp-ph-actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+.pp-ph-meta { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 12px 20px; margin: 18px 0 0; padding-top: 16px; border-top: 1px solid var(--pp-border); }
+.pp-ph-meta dt { font-size: 12px; font-weight: 600; color: var(--pp-text-3); text-transform: uppercase; letter-spacing: .04em; }
+.pp-ph-meta dd { margin: 2px 0 0; font-weight: 600; overflow-wrap: anywhere; }
+
+/* ---------- timeline ---------- */
+.pp-timeline .tl-date { line-height: 1.2; }
+.pp-tl-year { display: block; font-weight: 500; color: var(--pp-text-3); }
+.pp-tl-kind { display: inline-flex; align-items: center; gap: 6px; font-size: 11.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; margin-bottom: 2px; }
+.pp-tl-kind svg { width: 14px; height: 14px; }
+.pp-tl-kind.is-visit { color: var(--pp-action-700); }
+.pp-tl-kind.is-rx { color: var(--pp-lavender-fg); }
+.pp-tl-kind.is-appt { color: var(--pp-info-fg); }
+
+/* ---------- documents / consent ---------- */
+.pp-doc-ico, .pp-ex-ico { width: 38px; height: 38px; border-radius: 10px; display: grid; place-items: center; background: var(--pp-action-050); color: var(--pp-action-700); flex: none; }
+.pp-doc-ico svg, .pp-ex-ico svg { width: 18px; height: 18px; }
+.pp-doc-preview { display: grid; place-items: center; gap: 6px; height: 180px; margin-bottom: 16px; border: 1px dashed var(--pp-border-strong); border-radius: var(--pp-r-md); background: var(--pp-surface-2); color: var(--pp-text-3); }
+.pp-doc-preview svg { width: 40px; height: 40px; }
+.pp-file { padding-top: 8px; }
+.pp-consent-items { border: 0; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.pp-consent-items .check { align-items: flex-start; }
+.pp-consent-items .check input { margin-top: 2px; flex: none; }
+.pp-consent-items .req { color: var(--pp-error-fg); }
+.pp-consent-items .error { display: none; font-size: 12px; color: var(--pp-error-fg); font-weight: 600; }
+.pp-consent-items.has-error .error { display: block; }
+.pp-sig { position: relative; border: 1px solid var(--pp-border-strong); border-radius: var(--pp-r-sm); background: #fff; }
+.field.has-error .pp-sig { border-color: var(--pp-error-fg); }
+.pp-sig canvas { display: block; width: 100%; height: 160px; touch-action: none; cursor: crosshair; }
+.pp-sig-line { position: absolute; left: 16px; right: 16px; bottom: 28px; border-top: 1px dashed var(--pp-border-strong); font-size: 11px; color: var(--pp-text-3); padding-top: 4px; pointer-events: none; }
+.pp-consent-row { align-items: flex-start !important; }
+.pp-sig-thumb { width: 140px; height: 40px; object-fit: contain; border: 1px solid var(--pp-border); border-radius: 6px; background: #fff; flex: none; }
+.pp-merge-cmp .pp-keep td { background: var(--pp-positive-bg); }
+.pp-merge-cmp .pp-merge td { background: var(--pp-warning-bg); }
+
+/* ---------- clinical forms ---------- */
+.pp-combo { display: grid; gap: 8px; }
+.pp-pt-mini { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; padding: 10px 12px; border-radius: var(--pp-r-md); background: var(--pp-surface-2); border: 1px solid var(--pp-border); }
+.pp-pt-mini > div { flex: 1 1 200px; }
+.pp-pain-row { display: flex; gap: 16px; align-items: center; }
+.pp-pain-row .range { flex: 1; height: 28px; }
+.pp-pain-scale { display: flex; justify-content: space-between; font-size: 11px; color: var(--pp-text-3); padding: 0 2px; margin-right: 112px; }
+.pp-pain-val { display: inline-flex; flex-direction: column; align-items: center; justify-content: center; min-width: 96px; padding: 6px 10px; border-radius: var(--pp-r-md); font-size: 12px; font-weight: 600; line-height: 1.1; }
+.pp-pain-val b { font-size: 24px; }
+.pp-pain-val.tone-positive { background: var(--pp-positive-bg); color: var(--pp-positive-fg); }
+.pp-pain-val.tone-warning { background: var(--pp-warning-bg); color: var(--pp-warning-fg); }
+.pp-pain-val.tone-error { background: var(--pp-error-bg); color: var(--pp-error-fg); }
+.pp-pain-summary { display: flex; gap: 16px; align-items: center; }
+.pp-pain-bar { height: 10px; margin-top: 6px; border-radius: 999px; background: var(--pp-neutral-bg); overflow: hidden; }
+.pp-pain-bar > span { display: block; height: 100%; }
+.pp-pain-bar > .tone-positive { background: var(--pp-positive-fg); }
+.pp-pain-bar > .tone-warning { background: #e59a1a; }
+.pp-pain-bar > .tone-error { background: var(--pp-error-fg); }
+
+/* pain map */
+.pp-painmap { display: flex; justify-content: center; }
+.pp-painmap-svg { width: 100%; max-width: 460px; height: auto; }
+.pp-pm-region { fill: #eef3f5; stroke: #9fb1ba; stroke-width: 1.2; transition: fill .12s; }
+.pp-painmap-svg.is-interactive .pp-pm-region { cursor: pointer; }
+.pp-painmap-svg.is-interactive .pp-pm-region:hover { fill: var(--pp-action-050); stroke: var(--pp-action); }
+.pp-pm-region:focus { outline: none; }
+.pp-pm-region:focus-visible { stroke: var(--pp-focus); stroke-width: 2.5; }
+.pp-pm-region.on { fill: #f26a5f; stroke: var(--pp-error-fg); }
+.pp-painmap-svg.is-interactive .pp-pm-region.on:hover { fill: #e5544a; stroke: var(--pp-error-fg); }
+.pp-pm-cap { font-size: 12px; font-weight: 700; fill: var(--pp-text-2); }
+.pp-pm-side { font-size: 11px; font-weight: 700; fill: var(--pp-text-3); }
+.pp-pm-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; justify-content: center; }
+.pp-pm-chip { padding: 3px 10px; border-radius: 999px; background: var(--pp-error-bg); color: var(--pp-error-fg); font-size: 12px; font-weight: 600; }
+
+/* prescription editor */
+.pp-tpl-row { flex-wrap: nowrap; }
+.pp-tpl-row .grow { flex: 1; min-width: 0; }
+.pp-items, .pp-meds { position: relative; } /* keeps .sr-only header text inside the scroll container */
+.pp-items .pp-num { width: 76px; height: 34px; }
+.pp-items .pp-freq { min-width: 140px; height: 34px; }
+.pp-items .pp-ex-cell { min-width: 220px; }
+.pp-meds .input { height: 34px; min-width: 110px; }
+.pp-caps { display: grid; grid-template-columns: 1fr auto; gap: 6px 12px; margin: 12px 0 0; font-size: 13px; }
+.pp-caps dt { color: var(--pp-text-2); }
+.pp-caps dd { margin: 0; }
+.pp-cap { display: inline-flex; align-items: center; gap: 4px; font-weight: 700; font-size: 12px; }
+.pp-cap svg { width: 14px; height: 14px; }
+.pp-cap.yes { color: var(--pp-positive-fg); }
+.pp-cap.no { color: var(--pp-error-fg); }
+.pp-rx-actions { position: sticky; top: calc(var(--pp-topbar-h) + 12px); }
+.pp-rx-actions .btn { width: 100%; }
+.pp-lib { border: 1px solid var(--pp-border); border-radius: var(--pp-r-md); max-height: 52vh; overflow: auto; }
+.pp-lib li { padding: 10px 14px; }
+
+/* ---------- print sheet (screen 15) ---------- */
+.pp-rx-stage { background: #dfe6ea; border-radius: var(--pp-r-lg); padding: 28px 16px; overflow-x: auto; }
+.pp-rx-sheet {
+  position: relative; width: 100%; max-width: 210mm; min-height: 297mm; margin: 0 auto; padding: 16mm 15mm; background: #fff;
+  box-shadow: var(--pp-shadow-md); color: #12232b; font-size: 12.5px; line-height: 1.45; display: flex; flex-direction: column; gap: 12px;
+}
+.pp-rx-sheet.is-draft::before { content: "DRAFT — NOT VALID"; position: absolute; top: 42%; left: 50%; transform: translate(-50%, -50%) rotate(-24deg); font-size: 56px; font-weight: 800; color: rgba(180, 35, 24, .12); white-space: nowrap; pointer-events: none; }
+.pp-rx-header { display: flex; gap: 14px; align-items: center; padding-bottom: 12px; border-bottom: 3px solid var(--pp-primary); }
+.pp-rx-logo { width: 54px; height: 54px; border-radius: 12px; background: var(--pp-primary); display: grid; place-items: center; overflow: hidden; flex: none; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+.pp-rx-logo svg { width: 34px; height: 34px; }
+.pp-rx-logo img { width: 100%; height: 100%; object-fit: cover; }
+.pp-rx-header .grow { flex: 1; min-width: 0; }
+.pp-rx-clinic { font-size: 20px; font-weight: 800; color: var(--pp-primary); }
+.pp-rx-sub { font-weight: 600; color: var(--pp-action-700); }
+.pp-rx-contact, .pp-rx-muted { color: #5b6b75; font-size: 11.5px; }
+.pp-rx-ref { text-align: right; font-size: 11.5px; color: #4b5b66; }
+.pp-rx-parties { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; padding: 10px 12px; border-radius: 8px; background: #f4f8fa; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+.pp-rx-label { font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--pp-action-700); margin-bottom: 3px; }
+.pp-rx-sheet p { margin: 0; }
+.pp-rx-allergy { margin-top: 4px; font-weight: 700; color: var(--pp-error-fg); }
+.pp-rx-sheet .table th, .pp-rx-sheet .table td { padding: 6px 8px; font-size: 11.5px; }
+.pp-rx-sheet .table th { background: #f4f8fa; }
+.pp-rx-sheet .table-wrap { overflow: visible; }
+.pp-rx-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.pp-rx-foot { margin-top: auto; display: flex; justify-content: space-between; align-items: flex-end; gap: 24px; padding-top: 24px; border-top: 1px solid #dfe7ec; }
+.pp-rx-note { font-size: 11px; color: #5b6b75; max-width: 60%; }
+.pp-rx-sign { text-align: center; min-width: 200px; font-size: 11.5px; }
+.pp-rx-sigline { border-top: 1px solid #12232b; margin-bottom: 4px; height: 36px; }
+
+/* ---------- session plans (screen 17) ---------- */
+.pp-sp-kpis { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: var(--pp-s4); }
+.pp-sp-kpis .kpi .kpi-value { font-size: 22px; }
+.pp-sp-progress .grow { flex: 1; min-width: 0; }
+.pp-sp-progress .pp-progress { margin-top: 8px; background: #fff; }
+.pp-sp-progress .pp-progress > span { background: var(--pp-lavender-fg); }
+.pp-sp-pkg { border-color: #cfeee7; }
+.pp-sp-pkg-num { display: flex; gap: 22px; }
+.pp-sp-pkg-num > div { text-align: center; }
+.pp-sp-pkg-num b { display: block; font-size: 22px; }
+.pp-sp-pkg-num span { font-size: 12px; color: var(--pp-text-3); }
+.pp-sessions tr.is-done td { color: var(--pp-text-2); }
+
+/* ---------- responsive ---------- */
+@media (max-width: 1199px) {
+  .pp-split { grid-template-columns: minmax(0, 1fr); }
+  .pp-ph-meta { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .pp-ph-actions { justify-content: flex-start; width: 100%; }
+  .pp-sp-kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .pp-rx-actions { position: static; }
+  .pp-rx-stage { padding: 16px 10px; }
+}
+@media (max-width: 767px) {
+  .pp-ph-meta { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .pp-ph-actions .btn { flex: 1 1 calc(50% - 8px); }
+  .pp-sp-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .pp-sp-kpis > :last-child { grid-column: 1 / -1; }
+  .pp-pain-row { flex-direction: column; align-items: stretch; }
+  .pp-pain-scale { margin-right: 0; }
+  .pp-tpl-row { flex-wrap: wrap; }
+  .pp-rx-stage { padding: 12px 0; background: transparent; }
+  .pp-rx-sheet { width: 100%; min-height: 0; padding: 18px 14px; }
+  .pp-rx-parties, .pp-rx-grid { grid-template-columns: 1fr; }
+  .pp-rx-foot { flex-direction: column; align-items: stretch; }
+  .pp-rx-note { max-width: none; }
+  .pp-sp-pkg-num { width: 100%; justify-content: space-around; }
+  .pp-sig-thumb { width: 100px; }
+  .pp-timeline li { grid-template-columns: 64px 1fr; gap: 10px; }
+  .pp-timeline li::before { left: 70px; }
+  .pp-timeline li::after { left: 74px; }
+}
+
+/* ---------- print: only the prescription sheet when it is on the page ---------- */
+@media print {
+  @page { size: A4; margin: 8mm; }
+  body:has(.pp-rx-sheet) * { visibility: hidden; }
+  body:has(.pp-rx-sheet) .pp-rx-sheet, body:has(.pp-rx-sheet) .pp-rx-sheet * { visibility: visible; }
+  body:has(.pp-rx-sheet) .pp-rx-stage { padding: 0; background: none; }
+  .pp-rx-sheet { position: absolute; left: 0; top: 0; width: 100%; min-height: 0; margin: 0; padding: 6mm 8mm; box-shadow: none; }
+  .pp-clinical .no-print, .pp-patient-head .pp-ph-actions { display: none !important; }
+  .pp-split { grid-template-columns: 1fr; }
+}

@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta name="robots" content="noindex, nofollow">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Vendor sign-in · Physio Point Super Admin (prototype)</title>
+  <link rel="stylesheet" href="../assets/css/tokens.css">
+  <link rel="stylesheet" href="../assets/css/components.css">
+  <link rel="stylesheet" href="../assets/css/shell.css">
+  <link rel="stylesheet" href="../assets/css/pages.css">
+  <link rel="stylesheet" href="assets/sa.css">
+</head>
+<body>
+  <div id="page"></div>
+  <noscript>This prototype needs JavaScript.</noscript>
+  <!-- Separate store from the clinic workspace: set BEFORE core.js loads. -->
+  <script>window.PP_STORE_KEY = 'pp-control-plane-v1';</script>
+  <script src="../assets/js/core.js"></script>
+  <script src="../assets/js/ui.js"></script>
+  <script src="assets/sa-core.js"></script>
+  <script src="assets/sa-data.js"></script>
+  <script src="assets/sa-login.js"></script>
+</body>
+</html>
