@@ -872,7 +872,7 @@
   const canAssign = () => PP.can('exercises.manage') || PP.can('prescriptions.issue') || PP.can('clinical.write');
   const exThumb = (x) => {
     const [bg, fg] = AREA_TONE[x.area] || ['#e6f6f3', '#00706a'];
-    return `<div class="ops-ex-media" style="--a-bg:${bg};--a-fg:${fg}">${x.imageData ? `<img src="${esc(x.imageData)}" alt="${esc(x.name)}">` : PP.icon(x.area === 'Balance' || x.area === 'Spine' ? 'body' : 'dumbbell')}
+    return `<div class="ops-ex-media" style="--a-bg:${bg};--a-fg:${fg}">${x.imageData ? `<img src="${esc(x.imageData)}" alt="${esc(x.name)}">` : (PP.exerciseAnim ? PP.exerciseAnim(x) : PP.icon(x.area === 'Balance' || x.area === 'Spine' ? 'body' : 'dumbbell'))}
       ${x.media === 'video' ? `<span class="play" aria-label="Video">${PLAY}</span>` : ''}<span class="mtag">${exStatus(x) !== 'Active' ? PP.ui.badge(exStatus(x)) : ''}</span></div>`;
   };
   function assignModal(exId, done) {

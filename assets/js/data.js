@@ -352,4 +352,19 @@
 
     return db;
   };
+  // Demo sign-in accounts for every professional (so the doctor/consultant and others can log in too).
+  // v2 also repairs accounts an earlier build created with a duplicate id.
+  PP.registerSeed('pro-accounts-v2', (db) => {
+    const num = (id) => Number(String(id).split('-')[1]) || 0;
+    const seen = new Set();
+    db.users.forEach((u) => { if (seen.has(u.id) && u.professionalId) { u.id = ''; } else seen.add(u.id); });
+    const nextId = () => 'USR-' + (db.users.reduce((m, u) => Math.max(m, num(u.id)), 0) + 1);
+    db.users.forEach((u) => { if (!u.id) { u.id = nextId(); const p = db.professionals.find((x) => x.id === u.professionalId); if (p) p.userId = u.id; } });
+    db.professionals.forEach((p) => {
+      if (p.status !== 'Active' || db.users.some((u) => u.professionalId === p.id)) return;
+      const email = p.email || (p.name.split(' ')[0].toLowerCase() + '@clinic.example');
+      const u = { id: nextId(), name: p.name, email, mobile: p.mobile || '', role: 'professional', branchIds: [p.branchId || 'BR-1'], status: 'Active', mfa: false, lastLogin: null, professionalId: p.id };
+      db.users.push(u); p.userId = u.id; if (!p.email) p.email = email;
+    });
+  });
 })();

@@ -26,7 +26,7 @@
         <p class="small muted" style="text-align:center;margin:0">Role-based access · Password reset is managed by your clinic admin</p>
       </form>
       <div class="demo-accounts"><div class="small muted"><b>Prototype:</b> pick a demo account (any password works).</div>
-        ${PP.db.users.map((u) => `<button class="btn btn-sm" data-demo="${u.email}" type="button"><span>${esc(u.name)}</span><span class="small muted">${esc((PP.db.roles.find((r) => r.id === u.role) || {}).name || u.role)}${u.status !== 'Active' ? ' · disabled' : ''}${u.mfa ? ' · 2-step' : ''}</span></button>`).join('')}
+        ${PP.db.users.map((u) => `<button class="btn btn-sm" data-demo="${u.email}" type="button"><span>${esc(u.name)}</span><span class="small muted">${esc(u.professionalId && PP.find.professional(u.professionalId) ? PP.find.professional(u.professionalId).designation : ((PP.db.roles.find((r) => r.id === u.role) || {}).name || u.role))}${u.status !== 'Active' ? ' · disabled' : ''}${u.mfa ? ' · 2-step' : ''}</span></button>`).join('')}
       </div>`);
     const form = PP.$('[data-form]', root);
     PP.$$('[data-demo]', root).forEach((b) => b.addEventListener('click', () => { PP.$('[name=email]', form).value = b.dataset.demo; PP.$('[name=password]', form).value = 'demo-password'; PP.$('[name=password]', form).focus(); }));

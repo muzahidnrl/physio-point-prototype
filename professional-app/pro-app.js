@@ -469,7 +469,7 @@
 
   /* ------------------------------------------------------------------ start */
   const side = () => `<h2>${esc(PP.t('professional'))} app</h2><p>Prototype of the ${esc(PP.tl('professional'))} mobile app (scope pending PD-011). Same fictional clinic data as the clinic workspace in this browser.</p>
-    <div class="card"><b>Try this</b><ul><li>Clinic code <b class="mono">PHYSIOPOINT</b></li><li>Sign in as Tanvir (USR-4) or Sadia (USR-5), any password</li><li>Start a session, then complete it with a quick note</li><li>Open the patient in the <a href="../customer-web/app.html#/patients" target="_blank" rel="noopener">clinic workspace</a> to see the visit</li><li>Request leave; check the admin’s notifications</li></ul></div>
+    <div class="card"><b>Try this</b><ul><li>Clinic code <b class="mono">PHYSIOPOINT</b></li><li>Sign in as any professional (e.g. Dr. Farzana Akter, Consultant, can prescribe medicine), any password</li><li>Start a session, then complete it with a quick note</li><li>Open the patient in the <a href="../customer-web/app.html#/patients" target="_blank" rel="noopener">clinic workspace</a> to see the visit</li><li>Request leave; check the admin’s notifications</li></ul></div>
     <div class="card"><b>Rules shown</b><ul><li>Prescribing depends on the ${esc(PP.tl('professional'))} type (D-020).</li><li>Only Approved templates can be issued.</li><li>Commission only on collected money (D-025).</li></ul></div>
     <div class="card"><a href="../index.html">Prototype hub</a> · <a href="../patient-app/index.html">Patient app</a></div>`;
   PP.load(); // terminology (PP.t) needs the store before boot

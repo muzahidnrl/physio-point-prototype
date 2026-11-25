@@ -238,3 +238,7 @@ a.m-item:hover, button.m-item:hover { background: #f6fafb; text-decoration: none
   .m-content { overflow: visible; padding: 0; }
   .m-doc { border: 0; padding: 0; }
 }
+.m-media.m-media-anim { height: auto; background: none; display: block; }
+.m-media.m-media-anim svg.ex-anim, .m-media.m-media-anim img { width: 100%; height: auto; margin: 0; display: block; border-radius: 12px; }
+.m-ic.m-ic-anim { width: 56px; height: 42px; padding: 0; overflow: hidden; background: none; }
+.m-ic.m-ic-anim svg.ex-anim, .m-ic.m-ic-anim img { width: 56px; height: 42px; margin: 0; color: inherit; }

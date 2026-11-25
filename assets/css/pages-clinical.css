@@ -200,3 +200,7 @@
   .pp-clinical .no-print, .pp-patient-head .pp-ph-actions { display: none !important; }
   .pp-split { grid-template-columns: 1fr; }
 }
+.pp-ex-thumb { display: inline-block; width: 64px; height: 48px; vertical-align: middle; margin-right: 10px; float: left; flex: none; }
+.pp-ex-thumb svg, .pp-ex-thumb img { width: 64px; height: 48px; object-fit: cover; }
+.pp-ex-ico.pp-ex-thumb { float: none; background: none; padding: 0; }
+@media print { .pp-ex-thumb { width: 48px; height: 36px; } .pp-ex-thumb svg { width: 48px; height: 36px; } }

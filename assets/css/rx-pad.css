@@ -1,0 +1,120 @@
+/* Prescription pad, medicine picker and branded invoice (owner's designs). */
+:root { --rxpad-green: #0f7a43; --rxpad-ink: #1f2a2e; --rxpad-paper: #f8f7f3; --rxpad-field: #eaf0f7; --rxpad-line: #d9d6cf; }
+
+/* ---------- medicine picker ---------- */
+.rxp { padding: 16px 20px; display: flex; flex-direction: column; gap: 14px; }
+.rxp-search { display: flex; gap: 10px; flex-wrap: wrap; }
+.rxp-search .grow { flex: 1 1 280px; }
+.rxp-group { display: flex; flex-direction: column; gap: 6px; }
+.rxp-glabel { font-size: 12.5px; font-weight: 700; color: var(--pp-text-2); }
+.rxp-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.rxp-chip { border: 1px solid var(--pp-border-strong); background: #fff; border-radius: 999px; padding: 6px 12px; font: inherit; font-size: 13px; cursor: pointer; }
+.rxp-chip:hover { border-color: var(--pp-action); background: var(--pp-action-050); }
+.rxp-results { border: 1px solid var(--pp-border); border-radius: var(--pp-r-md); overflow: hidden; max-height: 320px; overflow-y: auto; }
+.rxp-row { display: flex; justify-content: space-between; gap: 12px; width: 100%; text-align: left; padding: 9px 12px; border: 0; border-bottom: 1px solid var(--pp-border); background: #fff; font: inherit; cursor: pointer; }
+.rxp-row:hover, .rxp-row:focus { background: var(--pp-action-050); outline: none; }
+.rxp-panel { border: 2px solid var(--pp-action); border-radius: var(--pp-r-lg); padding: 16px; background: #fbfefd; }
+.rxp-ptitle { font-size: 16px; }
+.rxp-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-top: 12px; }
+.rxp-fs { border: 1px solid var(--pp-border); border-radius: var(--pp-r-md); padding: 10px 12px 12px; margin: 0; min-width: 0; }
+.rxp-fs legend { font-weight: 700; font-size: 13px; padding: 0 6px; }
+.rxp-ticks { display: flex; flex-wrap: wrap; gap: 8px; }
+.rxp-tick { display: inline-flex; align-items: center; gap: 6px; padding: 7px 12px; border: 1px solid var(--pp-border-strong); border-radius: 8px; cursor: pointer; background: #fff; font-weight: 600; font-size: 13.5px; }
+.rxp-tick input { accent-color: var(--pp-action); width: 16px; height: 16px; }
+.rxp-tick.on { border-color: var(--pp-action); background: var(--pp-action-050); color: var(--pp-action-700); }
+.rxp-tick.q6 { flex-basis: 100%; }
+.rxp-sm { width: auto; min-width: 84px; height: 34px; }
+.rxp-preview { font-weight: 600; color: var(--pp-action-700); }
+.rxp-list { list-style: none; counter-reset: rxp; margin: 0; padding: 0; border: 1px solid var(--pp-border); border-radius: var(--pp-r-md); }
+.rxp-list:empty { display: none; }
+.rxp-list li { counter-increment: rxp; display: flex; gap: 10px; align-items: center; padding: 10px 12px; border-bottom: 1px solid var(--pp-border); }
+.rxp-list li:last-child { border-bottom: 0; }
+.rxp-list li::before { content: counter(rxp) "."; font-weight: 700; color: var(--pp-text-3); min-width: 22px; }
+.rxp-list li.editing { background: var(--pp-warning-bg); }
+.rxp-line { font-size: 13.5px; color: var(--pp-action-700); margin-top: 2px; }
+.rxp-empty { padding: 4px 2px; }
+
+/* ---------- pad sheet (screen + print) ---------- */
+.rxpad-sheet { background: var(--rxpad-paper) !important; color: var(--rxpad-ink); width: 794px; max-width: 100%; min-height: 1080px; margin: 0 auto; padding: 0 !important; position: relative; display: flex; flex-direction: column; font-family: var(--pp-font); box-shadow: var(--pp-shadow-md); }
+.rxpad-head { display: flex; justify-content: space-between; align-items: center; gap: 24px; padding: 30px 36px 22px; border-bottom: 1px solid var(--rxpad-line); }
+.rxpad-logo { display: flex; align-items: center; gap: 8px; }
+.rxpad-fan { width: 46px; height: 46px; }
+.rxpad-logo-img { height: 46px; width: auto; }
+.rxpad-brand { font-size: 28px; letter-spacing: -.01em; color: #10302a; }
+.rxpad-brand b { font-weight: 800; }
+.rxpad-contact { display: grid; grid-template-columns: auto auto; gap: 6px 36px; font-size: 12px; }
+.rxpad-contact .mono { font-family: ui-monospace, "Cascadia Mono", Consolas, monospace; letter-spacing: .02em; }
+.rxpad-body { display: grid; grid-template-columns: 205px 1fr; flex: 1; }
+.rxpad-left { border-right: 1px solid var(--rxpad-line); padding: 20px 18px; display: flex; flex-direction: column; gap: 18px; }
+.rxpad-box { display: flex; flex-direction: column; gap: 6px; flex: 1; }
+.rxpad-label { font-weight: 700; font-size: 13px; }
+.rxpad-boxin { background: var(--rxpad-field); flex: 1; min-height: 150px; padding: 8px 10px; font-size: 12.5px; line-height: 1.5; }
+.rxpad-right { padding: 20px 26px; display: flex; flex-direction: column; gap: 10px; }
+.rxpad-fields { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px 18px; }
+.rxpad-fields span { display: flex; gap: 6px; align-items: baseline; border-bottom: 1px dotted #b9c3cb; padding-bottom: 4px; font-size: 13px; }
+.rxpad-fields span.w2 { grid-column: span 2; }
+.rxpad-fields i { font-style: normal; font-weight: 700; }
+.rxpad-fields b { font-weight: 600; background: var(--rxpad-field); padding: 2px 8px; flex: 1; min-height: 20px; }
+.rxpad-rx { background: var(--rxpad-field); flex: 1; padding: 14px 18px 90px; position: relative; font-size: 13.5px; }
+.rxpad-symbol { font-size: 30px; font-weight: 700; font-family: Georgia, serif; color: var(--rxpad-green); line-height: 1; margin-bottom: 8px; }
+.rxpad-meds { margin: 0 0 10px; padding-left: 22px; display: flex; flex-direction: column; gap: 10px; }
+.rxpad-dose { color: #34413f; margin-top: 2px; }
+.rxpad-sub { font-weight: 700; margin: 12px 0 4px; color: var(--rxpad-green); }
+.rxpad-ex { margin: 0; padding-left: 20px; }
+.rxpad-rx p { margin: 0; }
+.rxpad-follow { margin-top: 12px; }
+.rxpad-sign { position: absolute; right: 18px; bottom: 14px; text-align: center; font-size: 12px; min-width: 180px; }
+.rxpad-sigline { border-top: 1px solid #6b7780; margin-bottom: 4px; }
+.rxpad-ref { position: absolute; top: 8px; right: 14px; font-size: 10px; color: #8a959c; }
+.rxpad-sheet footer { border-top: 1px solid var(--rxpad-line); padding: 14px 36px 18px; }
+.rxpad-pain { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+.rxpad-faces { display: grid; grid-template-columns: repeat(6, 90px); justify-items: center; }
+.rxpad-face { display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 11px; font-weight: 600; opacity: .55; }
+.rxpad-face svg { width: 40px; height: 40px; }
+.rxpad-face.on { opacity: 1; transform: scale(1.12); }
+.rxpad-face.on span { text-decoration: underline; }
+.rxpad-scale { width: 540px; max-width: 100%; }
+.rxpad-nums { display: flex; justify-content: space-between; font-size: 11px; padding: 0 2px; }
+.rxpad-nums span.on { font-weight: 800; color: #b42318; }
+.rxpad-bar { height: 8px; border-radius: 99px; background: linear-gradient(90deg, #5b9bd5, #3dbb98, #8cc63f, #f6c445, #f28c28, #e5505b); position: relative; margin-top: 4px; }
+.rxpad-bar i { position: absolute; top: -5px; width: 4px; height: 18px; background: #1f2a2e; border-radius: 2px; transform: translateX(-2px); }
+.card .rxpad-pain { padding: 6px 0; }
+.card .rxpad-faces { grid-template-columns: repeat(6, minmax(0, 1fr)); width: 100%; }
+
+/* ---------- invoice sheet ---------- */
+.invpad-sheet { background: var(--rxpad-paper); color: var(--rxpad-ink); width: 794px; max-width: 100%; min-height: 1080px; margin: 0 auto; padding: 36px 44px 28px; position: relative; display: flex; flex-direction: column; gap: 22px; font-family: var(--pp-font); }
+.invpad-head { display: flex; justify-content: space-between; align-items: flex-start; padding-bottom: 22px; border-bottom: 1px solid var(--rxpad-line); }
+.invpad-tag { font-size: 11.5px; color: #4b5b5f; max-width: 200px; margin-top: 4px; margin-left: 54px; }
+.invpad-title { text-align: right; }
+.invpad-title h1 { font-size: 34px; font-weight: 800; }
+.invpad-title i, .invpad-bill i { font-style: normal; font-weight: 700; margin-right: 6px; }
+.invpad-title b, .invpad-bill b { background: var(--rxpad-field); padding: 2px 10px; font-weight: 600; }
+.invpad-bill { display: flex; flex-direction: column; gap: 6px; padding-bottom: 22px; border-bottom: 1px solid var(--rxpad-line); font-size: 13px; }
+.invpad-bill h3 { font-size: 14px; margin-bottom: 4px; }
+.invpad-bill div { display: flex; } .invpad-bill b { flex: 1; }
+.invpad-table { width: 100%; border-collapse: separate; border-spacing: 0 8px; margin-top: 24px; }
+.invpad-table th { text-align: left; font-size: 14px; padding: 0 8px 6px; }
+.invpad-table td { background: var(--rxpad-field); padding: 8px; font-size: 13px; }
+.invpad-table th:not(:first-child), .invpad-table td:not(:first-child) { text-align: right; width: 16%; }
+.invpad-totals { align-self: flex-end; display: grid; grid-template-columns: 90px 160px; gap: 6px 10px; margin: 0; padding-top: 14px; border-top: 1px solid var(--rxpad-line); width: 100%; justify-content: end; font-size: 13px; }
+.invpad-totals dt { color: #4b5b5f; } .invpad-totals dd { margin: 0; background: var(--rxpad-field); padding: 3px 10px; text-align: right; }
+.invpad-totals .b { font-weight: 800; color: var(--rxpad-ink); }
+.invpad-foot { margin-top: auto; display: grid; grid-template-columns: 1fr 1.6fr 1.1fr 1fr; gap: 14px; align-items: center; font-size: 11.5px; position: relative; padding-top: 18px; }
+.invpad-mark { position: absolute; left: -20px; bottom: -10px; opacity: .12; }
+.invpad-mark .rxpad-fan { width: 110px; height: 110px; }
+#fin-print .invpad-sheet { box-shadow: none; }
+
+@media (max-width: 1199px) { .rxp-grid { grid-template-columns: 1fr; } }
+@media (max-width: 767px) {
+  .rxpad-head { flex-direction: column; align-items: flex-start; padding: 20px; }
+  .rxpad-body { grid-template-columns: 1fr; }
+  .rxpad-left { border-right: 0; border-bottom: 1px solid var(--rxpad-line); }
+  .rxpad-fields { grid-template-columns: 1fr 1fr; }
+  .rxpad-faces { grid-template-columns: repeat(3, 90px); row-gap: 8px; }
+  .rxpad-sheet { min-height: 0; }
+}
+@media print {
+  .rxpad-sheet { width: 100% !important; min-height: 277mm !important; box-shadow: none !important; padding: 0 !important; }
+  .rxpad-sheet, .invpad-sheet { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .invpad-sheet { width: 100%; min-height: 270mm; padding: 10mm 12mm; }
+}

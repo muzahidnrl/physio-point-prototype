@@ -843,6 +843,7 @@
   }
 
   function printInvoice(inv) {
+    if (PP.rxPad && PP.rxPad.invoiceSheet) { printSheet(PP.rxPad.invoiceSheet(inv)); return; } // owner's invoice design (2026-11-26)
     const t = PP.bill.totals(inv); const pat = PP.find.patient(inv.patientId) || {};
     const pays = PP.db.payments.filter((p) => p.invoiceId === inv.id && p.status === 'Completed');
     printSheet(`<article class="fin-sheet">${sheetHead('INVOICE', `${esc(inv.id)} · ${PP.fmt.date(inv.date)}`)}

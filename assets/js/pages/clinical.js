@@ -294,7 +294,7 @@
         ${items.map((it, i) => {
           const ex = PP.find.exercise(it.exerciseId) || { name: it.exerciseId, area: '', instructions: '' };
           const ro = readonly ? 'disabled' : '';
-          return `<tr><td class="mono">${i + 1}</td><td class="pp-ex-cell"><b>${esc(ex.name)}</b> <span class="badge neutral">${esc(ex.area)}</span><span class="sub">${esc(ex.instructions)}</span></td>
+          return `<tr><td class="mono">${i + 1}</td><td class="pp-ex-cell">${PP.exerciseAnim ? `<span class="pp-ex-thumb">${PP.exerciseMedia(ex)}</span>` : ''}<b>${esc(ex.name)}</b> <span class="badge neutral">${esc(ex.area)}</span><span class="sub">${esc(ex.instructions)}</span></td>
             <td><input class="input pp-num" type="number" min="1" max="50" data-i="${i}" data-k="sets" value="${esc(it.sets)}" aria-label="Sets for ${esc(ex.name)}" ${ro}></td>
             <td><input class="input pp-num" type="number" min="1" max="200" data-i="${i}" data-k="reps" value="${esc(it.reps)}" aria-label="Repetitions for ${esc(ex.name)}" ${ro}></td>
             <td><select class="select pp-freq" data-i="${i}" data-k="frequency" aria-label="Frequency for ${esc(ex.name)}" ${ro}>${FREQ.concat(FREQ.includes(it.frequency) || !it.frequency ? [] : [it.frequency]).map((f) => `<option ${f === it.frequency ? 'selected' : ''}>${esc(f)}</option>`).join('')}</select></td>
@@ -324,7 +324,7 @@
         const draw = () => {
           const t = q.value.trim().toLowerCase(); const a = ar.value;
           const list = PP.db.exercises.filter((e) => (!a || e.area === a) && (!t || `${e.name} ${e.area} ${e.instructions}`.toLowerCase().includes(t)));
-          ul.innerHTML = list.length ? list.map((e) => { const has = items.some((i) => i.exerciseId === e.id); return `<li><span class="pp-ex-ico">${PP.icon(e.media === 'video' ? 'activity' : 'dumbbell')}</span><div class="grow"><b>${esc(e.name)}</b> <span class="badge neutral">${esc(e.area)}</span> <span class="small muted">${esc(e.media)}</span><div class="small muted">${esc(e.instructions)}</div></div>
+          ul.innerHTML = list.length ? list.map((e) => { const has = items.some((i) => i.exerciseId === e.id); return `<li><span class="pp-ex-ico pp-ex-thumb">${PP.exerciseMedia ? PP.exerciseMedia(e) : PP.icon('dumbbell')}</span><div class="grow"><b>${esc(e.name)}</b> <span class="badge neutral">${esc(e.area)}</span> <span class="small muted">${esc(e.media)}</span><div class="small muted">${esc(e.instructions)}</div></div>
             <button type="button" class="btn btn-sm ${has ? '' : 'btn-primary'}" data-add="${esc(e.id)}" ${has ? 'disabled' : ''}>${has ? `${PP.icon('check')} Added` : `${PP.icon('plus')} Add`}</button></li>`; }).join('')
             : `<li>${PP.ui.empty({ icon: 'search', title: 'No exercises match', text: 'Try another search or area.' })}</li>`;
           PP.$$('[data-add]', ul).forEach((b) => b.addEventListener('click', () => { items.push({ exerciseId: b.dataset.add, sets: 3, reps: 10, frequency: 'Daily' }); added++; draw(); if (onDone) onDone(); }));
@@ -338,7 +338,7 @@
   function staticItems(items, withInstructions) {
     if (!items || !items.length) return '<p class="muted">No exercises.</p>';
     return `<div class="table-wrap"><table class="table pp-items"><thead><tr><th>#</th><th>Exercise</th><th>Sets × reps</th><th>Frequency</th>${withInstructions ? '<th>Instructions</th>' : ''}</tr></thead><tbody>
-      ${items.map((it, i) => { const ex = PP.find.exercise(it.exerciseId) || { name: it.exerciseId, area: '', instructions: '' }; return `<tr><td>${i + 1}</td><td><b>${esc(ex.name)}</b>${ex.area ? `<span class="sub">${esc(ex.area)}</span>` : ''}</td><td class="nowrap">${esc(it.sets)} × ${esc(it.reps)}</td><td>${esc(it.frequency || '')}</td>${withInstructions ? `<td>${esc(ex.instructions)}</td>` : ''}</tr>`; }).join('')}</tbody></table></div>`;
+      ${items.map((it, i) => { const ex = PP.find.exercise(it.exerciseId) || { name: it.exerciseId, area: '', instructions: '' }; return `<tr><td>${i + 1}</td><td>${PP.exerciseAnim ? `<span class="pp-ex-thumb">${PP.exerciseMedia(ex)}</span>` : ''}<b>${esc(ex.name)}</b>${ex.area ? `<span class="sub">${esc(ex.area)}</span>` : ''}</td><td class="nowrap">${esc(it.sets)} × ${esc(it.reps)}</td><td>${esc(it.frequency || '')}</td>${withInstructions ? `<td>${esc(ex.instructions)}</td>` : ''}</tr>`; }).join('')}</tbody></table></div>`;
   }
   function staticMeds(meds) {
     if (!meds || !meds.length) return '';
@@ -362,7 +362,7 @@
     rx.items = rx.items || []; rx.medications = rx.medications || []; rx.versions = rx.versions || [];
     if (isNew) {
       const v = rx.visitId ? PP.find.visit(rx.visitId) : null;
-      if (v) { rx.patientId = v.patientId; rx.professionalId = v.professionalId; rx.assessment = v.assessment || ''; rx.condition = v.complaint || ''; }
+      if (v) { rx.patientId = v.patientId; rx.professionalId = v.professionalId; rx.assessment = v.assessment || ''; rx.condition = v.complaint || ''; rx.cc = v.complaint || ''; rx.oe = [v.assessment, v.rom].filter(Boolean).join('\n'); rx.advice = v.advice || ''; rx.painScore = v.painScale; }
       const mine = myProId(); if (mine && cap(mine, 'canRecordClinical')) rx.professionalId = mine;
     }
     const pros = clinicalPros(); if (rx.professionalId && !pros.some((p) => p.id === rx.professionalId) && PP.find.professional(rx.professionalId)) pros.push(PP.find.professional(rx.professionalId));
@@ -383,6 +383,7 @@
             <div id="visit-field"></div>
             ${F({ name: 'professionalId', label: PP.t('professional'), type: 'select', required: true, value: rx.professionalId, options: pros.map(proOpt), disabled: !canEdit })}
           </div>` })}
+          ${PP.rxPad.detailsCard(rx, canEdit)}
           ${PP.ui.card({ title: 'Condition & assessment', body: `<div class="form-grid">
             <div class="field full"><label for="rx-tpl">Condition template</label><div class="row pp-tpl-row">
               <select class="select grow" id="rx-tpl" data-tpl ${canEdit ? '' : 'disabled'}><option value="">Choose an approved template…</option>${tpls.map((t) => `<option value="${esc(t.id)}" ${t.id === rx.templateId ? 'selected' : ''}>${esc(t.name)} · ${esc(t.condition)} · v${esc(t.version)}${t.status !== 'Approved' ? ' (revision in draft)' : ''}</option>`).join('')}</select>
@@ -394,7 +395,7 @@
             ${F({ name: 'plan', label: 'Exercise & treatment plan', type: 'textarea', rows: 4, value: rx.plan, full: true, disabled: !canEdit })}
           </div>` })}
           ${PP.ui.card({ title: 'Exercise items', flush: true, actions: canEdit ? `<button type="button" class="btn btn-sm btn-primary" data-lib>${PP.icon('plus')} Add from library</button>` : '', body: '<div id="rx-items"></div>' })}
-          ${PP.ui.card({ title: 'Medications', flush: true, id: 'rx-meds-card', body: '<div id="rx-meds"></div>' })}
+          ${PP.ui.card({ title: 'ওষুধ (℞ Medicines)', flush: true, id: 'rx-meds-card', body: '<div id="rx-meds"></div>' })}
           ${PP.ui.card({ title: 'Frequency & follow-up', body: `<div class="form-grid">
             ${F({ name: 'frequency', label: 'Frequency', value: rx.frequency, attrs: 'list="rx-freq-list"', disabled: !canEdit, placeholder: 'e.g. 3 sessions / week' })}
             ${F({ name: 'followUp', label: 'Follow-up date', type: 'date', value: rx.followUp, disabled: !canEdit })}
@@ -439,6 +440,7 @@
         host.innerHTML = `<div class="card-body">${PP.ui.alert('info', `<b>${esc(t ? t.name : 'This professional type')}</b> cannot prescribe medication. Medication items are only available when the professional type has “Can prescribe medication” enabled (D-020).${rx.medications.length ? ' Existing medication items will not be saved.' : ''}`)}</div>`;
         return;
       }
+      if (PP.rxPad && PP.rxPad.picker) { PP.rxPad.picker(host, rx.medications, { readOnly: !canEdit }); return; }
       const ro = canEdit ? '' : 'disabled';
       host.innerHTML = `${rx.medications.length ? `<div class="table-wrap"><table class="table pp-meds"><thead><tr><th>Medication</th><th>Dose</th><th>Frequency</th><th>Duration</th>${canEdit ? '<th><span class="sr-only">Remove</span></th>' : ''}</tr></thead><tbody>
         ${rx.medications.map((m, i) => `<tr>${['name', 'dose', 'frequency', 'duration'].map((k) => `<td><input class="input" data-mi="${i}" data-mk="${k}" value="${esc(m[k] || '')}" placeholder="${{ name: 'e.g. Paracetamol', dose: '500 mg', frequency: 'Twice daily', duration: '5 days' }[k]}" aria-label="${k}" ${ro}></td>`).join('')}
@@ -501,13 +503,15 @@
 
     function collect() {
       const d = PP.form.read(form);
-      Object.assign(rx, { patientId: d.patientId, visitId: d.visitId, professionalId: d.professionalId, condition: d.condition, assessment: d.assessment, plan: d.plan, frequency: d.frequency, followUp: d.followUp });
+      Object.assign(rx, { patientId: d.patientId, visitId: d.visitId, professionalId: d.professionalId, condition: d.condition, assessment: d.assessment, plan: d.plan, frequency: d.frequency, followUp: d.followUp,
+        cc: d.cc, oe: d.oe, advice: d.advice, investigations: d.investigations, patientNote: d.patientNote, weight: d.weight, painScore: d.painScore === '' || d.painScore == null ? null : Number(d.painScore) });
       const v = PP.find.visit(rx.visitId); const p = PP.find.patient(rx.patientId);
       rx.branchId = (v && v.branchId) || (p && p.branchId) || rx.branchId || null;
       rx.medications = cap(rx.professionalId, 'canPrescribeMedication') ? rx.medications.filter((m) => m.name && m.name.trim()) : [];
       return rx;
     }
-    const CONTENT = ['patientId', 'visitId', 'professionalId', 'branchId', 'templateId', 'condition', 'assessment', 'plan', 'items', 'medications', 'frequency', 'followUp'];
+    const CONTENT = ['patientId', 'visitId', 'professionalId', 'branchId', 'templateId', 'condition', 'assessment', 'plan', 'items', 'medications', 'frequency', 'followUp', 'cc', 'oe', 'advice', 'investigations', 'patientNote', 'weight', 'painScore'];
+    PP.rxPad.bindDetails(form);
 
     const draftBtn = PP.$('[data-draft]', el);
     if (draftBtn) draftBtn.addEventListener('click', async () => {
@@ -529,7 +533,7 @@
       if (!PP.form.validate(form)) return;
       collect();
       const block = issueBlock(); if (block) { PP.ui.toast(block, 'error'); return; }
-      if (!rx.items.length && !rx.plan) { PP.ui.toast('Add at least one exercise or a treatment plan before issuing.', 'error'); return; }
+      if (!rx.items.length && !rx.plan && !rx.medications.length) { PP.ui.toast('Add at least one medicine, exercise or treatment plan before issuing.', 'error'); return; }
       const revising = !isNew && rx0.status === 'Issued';
       const res = await PP.ui.confirm(revising
         ? { title: `Issue version ${(rx0.version || 1) + 1}?`, message: `Version ${esc(rx0.version || 1)} stays in the history, unchanged. The patient's printout will show the new version.`, confirmLabel: 'Issue revision', reasonLabel: 'What changed in this revision?', reasonRequired: true }
@@ -541,7 +545,8 @@
         else {
           if (revising) {
             target.versions = target.versions || [];
-            target.versions.push({ version: target.version || 1, date: target.date, condition: target.condition, assessment: target.assessment, plan: target.plan, items: PP.clone(target.items || []), medications: PP.clone(target.medications || []), frequency: target.frequency, followUp: target.followUp, by: target.professionalId, note: res.reason || '' });
+            target.versions.push({ version: target.version || 1, date: target.date, condition: target.condition, assessment: target.assessment, plan: target.plan, items: PP.clone(target.items || []), medications: PP.clone(target.medications || []), frequency: target.frequency, followUp: target.followUp, by: target.professionalId, note: res.reason || '',
+              cc: target.cc, oe: target.oe, advice: target.advice, investigations: target.investigations, patientNote: target.patientNote, weight: target.weight, painScore: target.painScore });
             target.version = (target.version || 1) + 1;
           }
           CONTENT.forEach((k) => { target[k] = PP.clone(rx[k]); });
@@ -588,6 +593,12 @@
             <div class="pp-rx-sign"><div class="pp-rx-sigline"></div><b>${esc(PP.proName(pro))}</b><div>${pro ? `Reg. no. ${esc(pro.registrationNo)}` : ''}</div></div></footer>
         </article>
       </div>`;
+      // Owner's prescription pad design (2026-11-26) replaces the earlier generic sheet.
+      PP.$('.pp-rx-stage', el).innerHTML = PP.rxPad.sheet(rx);
+      if (PP.can('settings.manage')) {
+        const bar = PP.$('.page-head .actions', el);
+        if (bar) { bar.insertAdjacentHTML('afterbegin', `<button class="btn btn-ghost" data-padset>${PP.icon('settings')} প্যাডের তথ্য</button>`); PP.$('[data-padset]', el).addEventListener('click', () => PP.rxPad.editSettings(() => PP.render())); }
+      }
       PP.$('[data-print]', el).addEventListener('click', () => window.print());
       PP.$('[data-pdf]', el).addEventListener('click', () => { PP.ui.toast('In the print dialog, choose <b>Save as PDF</b> as the destination.', 'info', 5000); setTimeout(() => window.print(), 400); });
     },
