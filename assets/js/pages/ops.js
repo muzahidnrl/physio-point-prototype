@@ -863,7 +863,7 @@
   });
 
   /* =============================================================== EXERCISES */
-  const AREA_TONE = { Knee: ['#e6f6f3', '#0a6b4f'], Spine: ['#efedfb', '#4f46a5'], Shoulder: ['#e7f3fb', '#1c5f8f'], Neck: ['#fff1de', '#8a5200'], Ankle: ['#fce8e7', '#b42318'], Balance: ['#eef2f5', '#4b5b66'] };
+  const AREA_TONE = { Knee: ['#e6f6f3', '#0a6b4f'], Spine: ['#efedfb', '#4f46a5'], Shoulder: ['#e7f3fb', '#1c5f8f'], Neck: ['#fff1de', '#8a5200'], Ankle: ['#fce8e7', '#b42318'], Balance: ['#eef2f5', '#4b5b66'], Hip: ['#eaf5e4', '#3f6b12'], Core: ['#fdf0e6', '#9a4a00'], Elbow: ['#e8f0fb', '#244f8f'], 'Wrist & Hand': ['#f4ebfa', '#6b3a8f'], Posture: ['#eef4f2', '#2f5d55'], Breathing: ['#e6f4fa', '#1f6280'] };
   const exStatus = (x) => x.status || 'Active';
   const exSets = (x) => (x.defaultSets != null ? x.defaultSets : 3);
   const exReps = (x) => (x.defaultReps != null ? x.defaultReps : 10);
@@ -957,20 +957,22 @@
           const t = st.q.toLowerCase();
           const list = PP.db.exercises.filter((x) => (!st.area || x.area === st.area) && (st.status === '' || (st.status === 'live' ? exStatus(x) !== 'Archived' : exStatus(x) === st.status)) && (!t || `${x.name} ${x.area} ${x.instructions}`.toLowerCase().includes(t)));
           const counts = {}; PP.db.exerciseAssignments.forEach((a) => { if (a.status === 'Active') counts[a.exerciseId] = (counts[a.exerciseId] || 0) + 1; });
-          grid.innerHTML = list.length ? `<div class="ops-ex-grid">${list.map((x) => `<article class="ops-ex-card ${exStatus(x) === 'Archived' ? 'is-archived' : ''}">
+          const shown = list.slice(0, st.limit || 36);
+          grid.innerHTML = list.length ? `<div class="small muted mb-2">${list.length} exercise${list.length > 1 ? 's' : ''}${list.length > shown.length ? ` · showing ${shown.length}` : ''}</div><div class="ops-ex-grid">${shown.map((x) => `<article class="ops-ex-card ${exStatus(x) === 'Archived' ? 'is-archived' : ''}">
               <a href="#/exercises/${esc(x.id)}" aria-label="Open ${esc(x.name)}">${exThumb(x)}</a>
               <div class="ops-ex-body"><div class="row between"><span class="ops-chip teal">${esc(x.area)}</span><span class="small muted mono">${esc(exSets(x))} × ${esc(exReps(x))}</span></div>
                 <h3><a href="#/exercises/${esc(x.id)}" style="color:inherit">${esc(x.name)}</a></h3><p>${esc(x.instructions)}</p></div>
               <div class="ops-ex-foot"><span class="small muted">${counts[x.id] ? `${counts[x.id]} active patient${counts[x.id] > 1 ? 's' : ''}` : 'Not assigned'}</span>
                 <div class="row" style="gap:4px"><a class="btn btn-ghost btn-sm" href="#/exercises/${esc(x.id)}">${canEditEx() ? 'Edit' : 'View'}</a>${canAssign() && exStatus(x) === 'Active' ? `<button class="btn btn-sm" data-assign-ex="${esc(x.id)}">Assign</button>` : ''}</div></div>
-            </article>`).join('')}</div>`
+            </article>`).join('')}</div>${list.length > shown.length ? `<div class="row mt-4" style="justify-content:center"><button class="btn" data-more-ex>আরও দেখুন (${list.length - shown.length} বাকি)</button></div>` : ''}`
             : `<div class="card">${PP.ui.empty({ icon: 'dumbbell', title: PP.db.exercises.length ? 'No exercises match' : 'The library is empty', text: PP.db.exercises.length ? 'Try another search, body area or status.' : 'Add the first exercise.', action: PP.db.exercises.length ? '<button class="btn" data-reset>Clear filters</button>' : canEditEx() ? '<a class="btn btn-primary" href="#/exercises/new">New exercise</a>' : '' })}</div>`;
           PP.$$('[data-assign-ex]', grid).forEach((b) => b.addEventListener('click', () => assignModal(b.dataset.assignEx, draw)));
+          const mo = PP.$('[data-more-ex]', grid); if (mo) mo.addEventListener('click', () => { st.limit = (st.limit || 36) + 36; draw(); });
           const r = PP.$('[data-reset]', grid); if (r) r.addEventListener('click', () => { st.area = ''; st.q = ''; st.status = 'live'; showLib(); });
         };
-        PP.$('[data-q]', body).addEventListener('input', (e) => { st.q = e.target.value.trim(); draw(); });
+        PP.$('[data-q]', body).addEventListener('input', (e) => { st.q = e.target.value.trim(); st.limit = 36; draw(); });
         PP.$('[data-st]', body).addEventListener('change', (e) => { st.status = e.target.value; draw(); });
-        PP.$$('[data-area]', body).forEach((b) => b.addEventListener('click', () => { st.area = b.dataset.area; PP.$$('[data-area]', body).forEach((x) => x.classList.toggle('active', x === b)); draw(); }));
+        PP.$$('[data-area]', body).forEach((b) => b.addEventListener('click', () => { st.area = b.dataset.area; st.limit = 36; PP.$$('[data-area]', body).forEach((x) => x.classList.toggle('active', x === b)); draw(); }));
         draw();
       };
       const show = (id) => { if (id === 'assign') { body.innerHTML = '<div class="card" data-at></div>'; assignmentsTable(PP.$('[data-at]', body)); } else showLib(); };
@@ -1017,7 +1019,7 @@
             ${PP.form.field({ type: 'number', name: 'defaultSets', label: 'Default sets', required: true, rule: 'positive', min: 1, value: x ? exSets(x) : 3, disabled: !edit })}
             ${PP.form.field({ type: 'number', name: 'defaultReps', label: 'Default repetitions', required: true, rule: 'positive', min: 1, value: x ? exReps(x) : 10, disabled: !edit })}
             ${PP.form.field({ type: 'number', name: 'holdSeconds', label: 'Hold (seconds)', rule: 'nonneg', min: 0, value: x && x.holdSeconds != null ? x.holdSeconds : '', disabled: !edit })}
-            ${PP.form.field({ type: 'select', name: 'equipment', label: 'Equipment', value: x ? x.equipment || '' : '', options: ['None', 'Resistance band', 'Towel', 'Chair', 'Wall', 'Foam roller', 'Dumbbell'], placeholder: '—', disabled: !edit })}
+            ${PP.form.field({ type: 'select', name: 'equipment', label: 'Equipment', value: x ? x.equipment || '' : '', options: ['None', 'Resistance band', 'Towel', 'Chair', 'Wall', 'Foam roller', 'Dumbbell', 'Mat', 'Step', 'Stick', 'Pillow', 'Exercise ball'], placeholder: '—', disabled: !edit })}
             ${PP.form.field({ type: 'textarea', name: 'instructions', label: 'Patient instructions', required: true, rows: 5, value: x ? x.instructions : '', full: true, disabled: !edit, hint: 'Plain language. One step per line works best.' })}
             ${PP.form.field({ type: 'textarea', name: 'precautions', label: 'Precautions', rows: 2, value: x ? x.precautions || '' : '', full: true, disabled: !edit, placeholder: 'e.g. stop if pain increases' })}
           </div>

@@ -48,13 +48,27 @@
     // Single-leg balance: standing on one leg, gentle sway.
     'single-leg balance': () => `${ground(108)}<g>${head(80, 22)}${L(80, 30, 80, 66)}${L(80, 66, 80, 108)}${L(80, 40, 60, 56)}${L(80, 40, 100, 56)}<g>${L(80, 66, 98, 80, C.move)}${L(98, 80, 92, 96, C.move)}</g>${rot([-3, 3, -3], 80, 108, 3)}</g>`,
   };
-  const BY_AREA = { Knee: 'straight leg raise', Spine: 'cat–camel', Shoulder: 'wall slide', Neck: 'chin tuck', Ankle: 'ankle pumps', Balance: 'single-leg balance' };
+  // Extra figures for the extended library.
+  FIG['glute bridge'] = () => `${mat(97)}${head(22, 86)}<g>${L(30, 90, 78, 92)}${L(78, 92, 104, 72)}${rot([0, -14, 0], 30, 90)}</g>${L(104, 72, 124, 96)}${L(44, 91, 62, 97)}`;
+  FIG['sit to stand'] = () => `${ground(108)}<rect x="40" y="70" width="34" height="6" rx="2" fill="#b9c8cf"/>${L(44, 76, 44, 108, '#b9c8cf')}<g>${head(76, 30)}${L(76, 38, 76, 70)}${L(76, 46, 92, 60)}${move(['0 18', '0 0', '0 18'], 3)}</g><g>${L(76, 88, 90, 108, C.move)}${L(76, 88, 76, 70, C.move)}</g>`;
+  FIG['arm curl'] = () => `${ground(108)}${head(80, 22)}${L(80, 30, 80, 66)}${L(80, 66, 72, 108)}${L(80, 66, 88, 108)}${L(80, 38, 84, 60)}<g>${L(84, 60, 108, 60, C.move)}<circle cx="110" cy="60" r="4" fill="${C.move}"/>${rot([0, -80, 0], 84, 60, 2.2)}</g>`;
+  FIG['wrist'] = () => `<rect x="20" y="70" width="90" height="10" rx="3" fill="#b9c8cf"/>${L(30, 64, 96, 64)}<g>${L(96, 64, 120, 64, C.move)}${L(120, 64, 128, 58, C.move)}${rot([-30, 30, -30], 96, 64, 2)}</g>`;
+  FIG['breathing'] = () => `${ground(108)}${head(80, 22)}<ellipse cx="80" cy="52" rx="14" ry="18" fill="none" stroke="${C.move}" stroke-width="5"><animate attributeName="rx" values="12;18;12" dur="4s" repeatCount="indefinite"/></ellipse>${L(80, 70, 72, 108)}${L(80, 70, 88, 108)}`;
+  FIG['plank'] = () => `${ground(100)}${head(30, 72)}<g>${L(40, 78, 130, 92, C.move)}${rot([0, -3, 0], 130, 92, 2.4)}</g>${L(44, 80, 44, 100)}${L(44, 100, 60, 100)}`;
+  FIG['calf raise'] = () => `${ground(108)}<g>${head(80, 20)}${L(80, 28, 80, 64)}${L(80, 64, 78, 100)}${L(80, 64, 86, 100)}${L(80, 38, 100, 56)}${move(['0 0', '0 -8', '0 0'], 2)}</g><g>${L(76, 104, 92, 106, C.move)}</g>`;
+  FIG['lunge'] = () => `${ground(108)}<g>${head(80, 22)}${L(80, 30, 80, 64)}${L(80, 64, 104, 84, C.move)}${L(104, 84, 104, 108, C.move)}${L(80, 64, 64, 90)}${L(64, 90, 50, 106)}${move(['0 -6', '0 8', '0 -6'], 2.6)}</g>`;
+  FIG['stretch'] = () => `${ground(108)}${head(80, 22)}${L(80, 30, 80, 66)}${L(80, 66, 70, 108)}${L(80, 66, 90, 108)}<g>${L(80, 38, 80, 8, C.move)}${rot([-25, 25, -25], 80, 38, 4)}</g>`;
+  const KEYWORDS = [[/bridge/, 'glute bridge'], [/sit to stand|squat/, 'sit to stand'], [/curl|triceps|biceps|elbow/, 'arm curl'], [/wrist|finger|thumb|grip|tendon|coin|towel wringing|prayer|nerve glide/, 'wrist'],
+    [/breath|huff|expansion/, 'breathing'], [/plank|bear hold|push-up/, 'plank'], [/calf|heel raise|toe raise|heel drop|heel walk|toe walk/, 'calf raise'], [/lunge|step|split/, 'lunge'],
+    [/clamshell|abduction|hydrant|donkey|hip extension|side-lying/, 'straight leg raise'], [/rotation|turn|circle/, 'external rotation with band'], [/stretch|angel|opener/, 'stretch'], [/tandem|balance|walk|march|reach|weight shift/, 'single-leg balance']];
+  const BY_AREA = { Knee: 'straight leg raise', Spine: 'cat–camel', Shoulder: 'wall slide', Neck: 'chin tuck', Ankle: 'ankle pumps', Balance: 'single-leg balance', Hip: 'glute bridge', Core: 'plank', Elbow: 'arm curl', 'Wrist & Hand': 'wrist', Posture: 'wall slide', Breathing: 'breathing' };
   const generic = () => `${ground(108)}${head(80, 22)}${L(80, 30, 80, 66)}${L(80, 66, 70, 108)}${L(80, 66, 90, 108)}<g>${L(80, 40, 104, 40, C.move)}${rot([60, -40, 60], 80, 40)}</g><g>${L(80, 40, 56, 40, C.move)}${rot([-60, 40, -60], 80, 40)}</g>`;
 
   PP.exerciseAnim = function (ex, opts) {
     const o = opts || {}; const name = String((ex && ex.name) || ex || '').toLowerCase().trim();
     const area = ex && ex.area;
-    const key = FIG[name] ? name : Object.keys(FIG).find((k) => name.includes(k) || k.includes(name)) || BY_AREA[area];
+    const kw = KEYWORDS.find(([re]) => re.test(name));
+    const key = FIG[name] ? name : (Object.keys(FIG).find((k) => name.includes(k)) || (kw && kw[1]) || BY_AREA[area]);
     const body = (key ? FIG[key] : generic)();
     const size = o.size ? `width="${o.size}" height="${Math.round(o.size * 0.75)}"` : 'width="100%"';
     return `<svg class="ex-anim" viewBox="0 0 160 120" ${size} role="img" aria-label="${(ex && ex.name) || 'Exercise'} demonstration" style="background:#f3f8f7;border-radius:8px">${body}</svg>`;
